@@ -1,0 +1,155 @@
+{
+  "info": {
+    "name": "Moto Mini App Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "studentId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "GET /api/students",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/students"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const students = pm.response.json();",
+              "pm.test('seed students are visible', function () {",
+              "  pm.expect(students).to.be.an('array');",
+              "  pm.expect(students.length).to.be.at.least(2);",
+              "});",
+              "",
+              "if (students.length > 0) {",
+              "  pm.collectionVariables.set('studentId', students[0].id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/students/:id/profile",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/students/{{studentId}}/profile"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const profile = pm.response.json();",
+              "pm.test('profile contains relations', function () {",
+              "  pm.expect(profile).to.have.property('id', pm.collectionVariables.get('studentId'));",
+              "  pm.expect(profile).to.have.property('skills');",
+              "  pm.expect(profile).to.have.property('packages');",
+              "  pm.expect(profile).to.have.property('trainingHistory');",
+              "  pm.expect(profile).to.have.property('videos');",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/skills",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/skills"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const skills = pm.response.json();",
+              "pm.test('seed skills are visible', function () {",
+              "  pm.expect(skills).to.be.an('array');",
+              "  pm.expect(skills.length).to.equal(8);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/booking-slots",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/booking-slots"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const slots = pm.response.json();",
+              "pm.test('seed booking slots are visible', function () {",
+              "  pm.expect(slots).to.be.an('array');",
+              "  pm.expect(slots.length).to.be.at.least(4);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "GET /api/instructor/calendar",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/instructor/calendar"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const events = pm.response.json();",
+              "pm.test('calendar is backed by booking slots', function () {",
+              "  pm.expect(events).to.be.an('array');",
+              "  pm.expect(events.length).to.be.at.least(4);",
+              "});"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    }
+  ]
+}

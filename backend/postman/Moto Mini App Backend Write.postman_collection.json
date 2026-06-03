@@ -1,0 +1,308 @@
+{
+  "info": {
+    "name": "Moto Mini App Backend Write Scenario",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "studentId",
+      "value": ""
+    },
+    {
+      "key": "skillId",
+      "value": ""
+    },
+    {
+      "key": "slotId",
+      "value": ""
+    },
+    {
+      "key": "historyId",
+      "value": ""
+    },
+    {
+      "key": "videoId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Create student",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/students",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"name\":\"Postman Write Student\",\"telegramUsername\":\"postman_write_{{$timestamp}}\",\"level\":\"BEGINNER\",\"focus\":\"Овал\",\"nextTrainingPlan\":\"Площадка\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(201);",
+              "const body = pm.response.json();",
+              "pm.expect(body.id).to.be.a('string');",
+              "pm.collectionVariables.set('studentId', body.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Update student",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/students/{{studentId}}",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"level\":\"BASIC\",\"focus\":\"Восьмерка\",\"nextTrainingPlan\":\"Медленная езда\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().level).to.equal('BASIC');"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Put package",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/students/{{studentId}}/package",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"totalTrainings\":5,\"completedTrainings\":1,\"paymentStatus\":\"paid\",\"startedAt\":\"2026-06-02T06:00:00.000Z\",\"endedAt\":\"2026-07-02T06:00:00.000Z\",\"isActive\":true}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json().isActive).to.equal(true);"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get skills",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/skills"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "const skills = pm.response.json();",
+              "pm.expect(skills.length).to.be.above(0);",
+              "pm.collectionVariables.set('skillId', skills[0].id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Put student skills",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/students/{{studentId}}/skills",
+        "body": {
+          "mode": "raw",
+          "raw": "[{\"skillId\":\"{{skillId}}\",\"progressPercent\":80}]"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.response.to.have.status(200);", "pm.expect(pm.response.json()[0].progressPercent).to.equal(80);"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create slot",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/booking-slots",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"startsAt\":\"2026-06-11T10:00:00.000Z\",\"durationMinutes\":90}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(201);",
+              "const slot = pm.response.json();",
+              "pm.expect(slot.status).to.equal('available');",
+              "pm.collectionVariables.set('slotId', slot.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Request slot",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/booking-slots/{{slotId}}/request",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"studentId\":\"{{studentId}}\",\"preference\":\"утро\",\"studentComment\":\"хочу повторить базу\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.response.to.have.status(201);", "pm.expect(pm.response.json().status).to.equal('requested');"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Confirm slot",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/booking-slots/{{slotId}}/confirm",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"finalLocation\":\"Учебная площадка\",\"finalLocationUrl\":\"https://maps.example.com/track\",\"instructorComment\":\"берем конусы\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.response.to.have.status(201);", "pm.expect(pm.response.json().status).to.equal('confirmed');"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create report",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/training-reports",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"slotId\":\"{{slotId}}\",\"studentId\":\"{{studentId}}\",\"trainedSkills\":[\"Овал\",\"Торможение\"],\"improved\":\"Стал плавнее держать траекторию\",\"nextFocus\":\"Добавить взгляд в выход\",\"levelUpdate\":\"INTERMEDIATE\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(201);",
+              "const result = pm.response.json();",
+              "pm.expect(result.slot.status).to.equal('completed');",
+              "pm.expect(result.trainingHistory.id).to.be.a('string');",
+              "pm.collectionVariables.set('historyId', result.trainingHistory.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Add video",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/training-history/{{historyId}}/videos",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"title\":\"Овал после корректировки\",\"telegramUrl\":\"https://t.me/example_video/pass4\",\"comment\":\"видно прогресс\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(201);",
+              "const video = pm.response.json();",
+              "pm.expect(video.trainingHistoryId).to.equal(pm.collectionVariables.get('historyId'));",
+              "pm.collectionVariables.set('videoId', video.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create manual history",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": "{{baseUrl}}/api/students/{{studentId}}/training-history/manual",
+        "body": {
+          "mode": "raw",
+          "raw": "{\"trainedAt\":\"2026-06-01T10:00:00.000Z\",\"summary\":\"Ручная запись старой тренировки\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": ["pm.response.to.have.status(201);", "pm.expect(pm.response.json().bookingSlotId).to.equal(null);"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Get profile and verify",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/students/{{studentId}}/profile"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.response.to.have.status(200);",
+              "const profile = pm.response.json();",
+              "pm.expect(profile.level).to.equal('INTERMEDIATE');",
+              "pm.expect(profile.trainingHistory.length).to.be.at.least(2);",
+              "pm.expect(profile.videos.some((video) => video.id === pm.collectionVariables.get('videoId'))).to.equal(true);"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
