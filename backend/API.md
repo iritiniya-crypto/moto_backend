@@ -1,6 +1,10 @@
 # Moto Mini App Backend API
 
-Документация актуальна после Backend Pass №4: read/write endpoints, DTO validation, Prisma migration и Postman/Newman smoke-сценарий.
+Документация актуальна на 04 июня 2026. Включает все endpoints, DTO с валидацией, типизацию для фронтенда.
+
+Последние обновления:
+- Добавлен параметр `studentId` в GET /booking-slots для фильтрации слотов по студентам
+- Все DTO полностью задокументированы с типами полей и валидацией
 
 ## Base URL
 
@@ -453,6 +457,20 @@ Prisma transaction:
 
 Возвращает все слоты с учеником, инструктором, requester, report и trainingRecord.
 
+Query params:
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `status` | BookingSlotStatus | no | Filter by booking slot status. |
+| `studentId` | UUID | no | Filter slots for specific student: returns slots where student.id matches OR status is 'available'. |
+
+Examples:
+
+- `GET /booking-slots` - все слоты
+- `GET /booking-slots?status=confirmed` - только подтвержденные слоты
+- `GET /booking-slots?studentId=<uuid>` - слоты студента + доступные для записи
+- `GET /booking-slots?studentId=<uuid>&status=confirmed` - слоты студента или доступные, с фильтром по подтвержденному статусу
+
 Response `200`:
 
 ```json
@@ -496,7 +514,8 @@ Notes:
 - Слоты сортируются по `startsAt ASC`.
 - `available` слот может иметь `student`, `requestedBy`, `report`, `trainingRecord` равными `null`.
 - `reschedule` означает перенос уже подтвержденной записи на другое время.
-- Для `reschedule` backend хранит старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`, чтобы UI мог показать “Было / Стало” после reload.
+- Для `reschedule` backend хранит старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`, чтобы UI мог показать "Было / Стало" после reload.
+- При фильтре по `studentId` возвращаются слоты, где либо `studentId` соответствует переданному значению, либо слот `available` (чтобы студент мог видеть свои тренировки и доступные для записи слоты).
 
 ### POST /booking-slots
 
@@ -1037,6 +1056,15 @@ Checks:
 }
 ```
 
+### FindBookingSlotsQueryDto
+
+```ts
+{
+  status?: BookingSlotStatus;
+  studentId?: string;
+}
+```
+
 ### CreateManualTrainingHistoryDto
 
 ```ts
@@ -1127,6 +1155,99 @@ Checks:
   comment?: string;
 }
 ```
+
+## DTO Validation Details
+
+### CreateStudentDto
+
+- `name`: string, required, max length 120
+- `telegramUsername`: string, optional, max length 120
+- `level`: StudentLevel enum, required (BEGINNER | BASIC | INTERMEDIATE | ADVANCED)
+- `focus`: string, optional
+- `nextTrainingPlan`: string, optional
+
+### UpdateStudentDto
+
+- `name`: string, optional, max length 120
+- `telegramUsername`: string, optional, max length 120
+- `level`: StudentLevel enum, optional
+- `focus`: string, optional
+- `nextTrainingPlan`: string, optional
+
+### CreateBookingSlotDto
+
+- `startsAt`: ISO date string, required
+- `durationMinutes`: integer, required, min 15, max 600
+
+### UpdateBookingSlotDto
+
+- `startsAt`: ISO date string, optional
+- `durationMinutes`: integer, optional, min 15, max 600
+- `title`: string, optional
+- `location`: string, optional
+- `notes`: string, optional
+
+### RequestBookingSlotDto
+
+- `studentId`: UUID, required
+- `preference`: string, optional
+- `studentComment`: string, optional
+
+### ConfirmBookingSlotDto
+
+- `finalLocation`: string, optional
+- `finalLocationUrl`: URL with protocol, optional
+- `instructorComment`: string, optional
+
+### RescheduleBookingSlotDto
+
+- `startsAt`: ISO date string, required
+- `durationMinutes`: integer, required, min 15, max 600
+- `instructorComment`: string, optional
+
+### CancelBookingSlotDto
+
+- `reason`: string, optional
+
+### FindBookingSlotsQueryDto
+
+- `status`: BookingSlotStatus enum, optional
+- `studentId`: UUID, optional
+
+### UpsertTrainingPackageDto
+
+- `totalTrainings`: integer, required, min 0, max 1000
+- `completedTrainings`: integer, required, min 0, max 1000
+- `paymentStatus`: TrainingPackagePaymentStatus enum, required (unpaid | paid | partial)
+- `startedAt`: ISO date string, optional
+- `endedAt`: ISO date string, optional
+- `isActive`: boolean, required
+- Validation: `completedTrainings <= totalTrainings`
+
+### UpsertStudentSkillDto
+
+- `skillId`: UUID, required
+- `progressPercent`: integer, required, min 0, max 100
+
+### CreateManualTrainingHistoryDto
+
+- `trainedAt`: ISO date string, optional
+- `summary`: string, optional
+
+### CreateTrainingReportDto
+
+- `slotId`: UUID, required
+- `studentId`: UUID, required
+- `trainedSkills`: string array, required
+- `improved`: string, required
+- `nextFocus`: string, required
+- `levelUpdate`: StudentLevel enum, optional
+
+### CreateTrainingVideoDto
+
+- `title`: string, optional
+- `telegramUrl`: URL with protocol, required
+- `comment`: string, optional
 
 ## Prisma Migration
 
@@ -1237,3 +1358,298 @@ npx prisma generate
 npx prisma migrate status
 npx newman run "postman/Moto Mini App Backend Write.postman_collection.json" --env-var baseUrl=http://127.0.0.1:3002
 ```
+
+## Frontend TypeScript Types
+
+Рекомендуемые типы для фронтенда на базе API ответов:
+
+```typescript
+// Domain Types
+type StudentLevel = 'BEGINNER' | 'BASIC' | 'INTERMEDIATE' | 'ADVANCED';
+type BookingSlotStatus = 'available' | 'requested' | 'reschedule' | 'confirmed' | 'completed' | 'cancelled';
+type TrainingPackagePaymentStatus = 'unpaid' | 'paid' | 'partial';
+type TrainingPackageStatus = 'active' | 'completed' | 'cancelled';
+type UserRole = 'STUDENT' | 'INSTRUCTOR';
+
+// Entity Types
+interface Student {
+  id: string;
+  userId: string;
+  name: string;
+  telegramUsername: string;
+  level: StudentLevel;
+  focus?: string;
+  nextTrainingPlan?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  user: User;
+  packages: TrainingPackage[];
+  skills: StudentSkill[];
+}
+
+interface BookingSlot {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  status: BookingSlotStatus;
+  title: string;
+  location?: string;
+  notes?: string;
+  instructorId: string;
+  studentId?: string;
+  requestedById?: string;
+  requestedAt?: string;
+  confirmedAt?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  preference?: string;
+  studentComment?: string;
+  finalLocation?: string;
+  finalLocationUrl?: string;
+  instructorComment?: string;
+  previousStartsAt?: string;
+  previousDurationMinutes?: number;
+  student?: {
+    id: string;
+    name: string;
+    telegramUsername: string;
+    level: StudentLevel;
+  };
+  instructor?: {
+    id: string;
+    displayName: string;
+    telegramUsername: string;
+    role: UserRole;
+  };
+  report?: TrainingReport | null;
+  trainingRecord?: TrainingHistory | null;
+}
+
+interface TrainingPackage {
+  id: string;
+  studentId: string;
+  totalTrainings: number;
+  completedTrainings: number;
+  paymentStatus: TrainingPackagePaymentStatus;
+  startedAt: string;
+  endedAt: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface StudentSkill {
+  skillId: string;
+  progressPercent: number;
+  skill: {
+    id: string;
+    name: string;
+    description?: string;
+  };
+}
+
+interface TrainingReport {
+  id: string;
+  bookingSlotId: string;
+  studentId: string;
+  instructorId: string;
+  trainedOn: string;
+  successes: string;
+  focusNext: string;
+  levelChange: StudentLevel;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface TrainingHistory {
+  id: string;
+  studentId: string;
+  bookingSlotId?: string;
+  reportId?: string;
+  trainedAt: string;
+  summary: string;
+  videos: TrainingVideo[];
+  report?: TrainingReport;
+  bookingSlot?: { id: string; status: BookingSlotStatus };
+}
+
+interface TrainingVideo {
+  id: string;
+  studentId: string;
+  trainingHistoryId: string;
+  reportId?: string;
+  telegramUrl: string;
+  title?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface User {
+  id: string;
+  telegramId?: string;
+  telegramUsername: string;
+  displayName: string;
+  role: UserRole;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+interface Skill {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Request/Query Types
+interface FindBookingSlotsQuery {
+  status?: BookingSlotStatus;
+  studentId?: string;
+}
+
+interface CreateStudentRequest {
+  name: string;
+  telegramUsername?: string;
+  level: StudentLevel;
+  focus?: string;
+  nextTrainingPlan?: string;
+}
+
+interface UpdateStudentRequest {
+  name?: string;
+  telegramUsername?: string;
+  level?: StudentLevel;
+  focus?: string;
+  nextTrainingPlan?: string;
+}
+
+interface CreateBookingSlotRequest {
+  startsAt: string;
+  durationMinutes: number;
+}
+
+interface UpdateBookingSlotRequest {
+  startsAt?: string;
+  durationMinutes?: number;
+  title?: string;
+  location?: string;
+  notes?: string;
+}
+
+interface RequestBookingSlotRequest {
+  studentId: string;
+  preference?: string;
+  studentComment?: string;
+}
+
+interface ConfirmBookingSlotRequest {
+  finalLocation?: string;
+  finalLocationUrl?: string;
+  instructorComment?: string;
+}
+
+interface RescheduleBookingSlotRequest {
+  startsAt: string;
+  durationMinutes: number;
+  instructorComment?: string;
+}
+
+interface CancelBookingSlotRequest {
+  reason?: string;
+}
+
+interface UpsertTrainingPackageRequest {
+  totalTrainings: number;
+  completedTrainings: number;
+  paymentStatus: TrainingPackagePaymentStatus;
+  startedAt?: string;
+  endedAt?: string;
+  isActive: boolean;
+}
+
+interface UpsertStudentSkillRequest {
+  skillId: string;
+  progressPercent: number;
+}
+
+interface CreateTrainingReportRequest {
+  slotId: string;
+  studentId: string;
+  trainedSkills: string[];
+  improved: string;
+  nextFocus: string;
+  levelUpdate?: StudentLevel;
+}
+
+interface CreateTrainingVideoRequest {
+  title?: string;
+  telegramUrl: string;
+  comment?: string;
+}
+
+interface CreateManualTrainingHistoryRequest {
+  trainedAt?: string;
+  summary?: string;
+}
+```
+
+## API Status Codes
+
+| Code | Meaning | Common Causes |
+| --- | --- | --- |
+| 200 | OK | Успешный GET, PATCH, PUT запрос |
+| 201 | Created | Успешный POST запрос |
+| 400 | Bad Request | Невалидный DTO, неверный диапазон значений, нарушение бизнес-логики |
+| 404 | Not Found | Ресурс не найден (student, slot, skill, report, instructor) |
+| 409 | Conflict | Неверный переход статуса, дубликат telegramUsername, неправильный слот для студента |
+| 500 | Internal Server Error | Ошибка сервера |
+
+## Integration Examples
+
+### Получить слоты студента
+
+```http
+GET /api/booking-slots?studentId=550e8400-e29b-41d4-a716-446655440000
+```
+
+Ответ:
+- Слоты, где `studentId = 550e8400-e29b-41d4-a716-446655440000`
+- ИЛИ слоты с `status = available`
+
+Используется чтобы показать студенту:
+- Его активные тренировки (requested, confirmed, reschedule)
+- Доступные для записи слоты
+
+### Создать и провести тренировку (flow)
+
+1. **POST /booking-slots** - создать свободный слот
+2. **POST /booking-slots/:slotId/request** - студент запрашивает запись
+3. **POST /booking-slots/:slotId/confirm** - инструктор подтверждает
+4. **POST /training-reports** - инструктор создает отчет после тренировки
+5. **Slot автоматически переходит в status = completed**
+
+### Отмена тренировки
+
+**POST /booking-slots/:slotId/cancel** - студент отменяет
+
+- `requested -> cancel -> available`
+- `confirmed -> cancel -> available`
+- `reschedule -> cancel -> available`
+
+Слот возвращается в календарь и становится доступным для других студентов.
+
+### Перенос тренировки
+
+**POST /booking-slots/:slotId/reschedule** - инструктор переносит confirmed тренировку
+
+Поля `previousStartsAt` и `previousDurationMinutes` сохраняют старое время для отображения "Было / Стало".
+
+### Ручная запись истории
+
+**POST /students/:studentId/training-history/manual** - когда нет booking slot (тренировка не через систему бронирования)
+
+Позволяет добавить исторические тренировки без связи с booking slot.
+
