@@ -1,6 +1,7 @@
 import { PrismaClient, StudentLevel } from '@prisma/client';
 
 const prisma = new PrismaClient();
+const defaultInstructorId = '11111111-1111-1111-1111-111111111111';
 
 const skillNames = [
   'Овал',
@@ -70,15 +71,30 @@ async function ensureSlot(data: {
 }
 
 async function main() {
-  const nikita = await prisma.user.upsert({
-    where: { telegramUsername: 'nikita_instructor' },
+  const nikitaUser = await prisma.user.upsert({
+    where: { telegramUsername: 'Nikita_Alex_Vietnam' },
     update: {},
     create: {
-      displayName: 'Никита',
-      telegramUsername: 'nikita_instructor',
+      displayName: 'Никита Александров',
+      telegramUsername: 'Nikita_Alex_Vietnam',
       role: 'INSTRUCTOR'
     }
   });
+
+  await prisma.$executeRawUnsafe(
+    `INSERT INTO "Instructor" ("id", "firstName", "lastName", "telegramUsername", "userId", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     ON CONFLICT ("telegramUsername") DO UPDATE SET
+       "firstName" = EXCLUDED."firstName",
+       "lastName" = EXCLUDED."lastName",
+       "userId" = EXCLUDED."userId",
+       "updatedAt" = CURRENT_TIMESTAMP`,
+    defaultInstructorId,
+    'Никита',
+    'Александров',
+    'Nikita_Alex_Vietnam',
+    nikitaUser.id
+  );
 
   const skills = await Promise.all(
     skillNames.map((name) =>
@@ -180,7 +196,7 @@ async function main() {
     status: 'completed',
     title: 'Площадка',
     location: 'Учебная площадка',
-    instructorId: nikita.id,
+    instructorId: nikitaUser.id,
     studentId: alex.id,
     requestedById: alexUser.id,
     requestedAt: new Date('2026-05-26T12:00:00.000Z'),
@@ -191,7 +207,7 @@ async function main() {
     where: { bookingSlotId: completedSlot.id },
     update: {
       studentId: alex.id,
-      instructorId: nikita.id,
+      instructorId: nikitaUser.id,
       trainedOn: 'Восьмерка, торможение, взгляд в повороте',
       successes: 'Стабильнее держит траекторию и раньше смотрит в выход.',
       focusNext: 'Не зажимать руль на малой скорости, добавить плавности газа.',
@@ -200,7 +216,7 @@ async function main() {
     create: {
       bookingSlotId: completedSlot.id,
       studentId: alex.id,
-      instructorId: nikita.id,
+      instructorId: nikitaUser.id,
       trainedOn: 'Восьмерка, торможение, взгляд в повороте',
       successes: 'Стабильнее держит траекторию и раньше смотрит в выход.',
       focusNext: 'Не зажимать руль на малой скорости, добавить плавности газа.',
@@ -259,7 +275,7 @@ async function main() {
     status: 'available',
     title: 'Свободный слот',
     location: 'Учебная площадка',
-    instructorId: nikita.id
+    instructorId: nikitaUser.id
   });
 
   await ensureSlot({
@@ -268,7 +284,7 @@ async function main() {
     status: 'requested',
     title: 'Заявка на тренировку',
     location: 'Учебная площадка',
-    instructorId: nikita.id,
+    instructorId: nikitaUser.id,
     studentId: maria.id,
     requestedById: mariaUser.id,
     requestedAt: new Date('2026-06-01T09:00:00.000Z')
@@ -280,11 +296,17 @@ async function main() {
     status: 'confirmed',
     title: 'Подтвержденная тренировка',
     location: 'Учебная площадка',
-    instructorId: nikita.id,
+    instructorId: nikitaUser.id,
     studentId: alex.id,
     requestedById: alexUser.id,
     requestedAt: new Date('2026-06-01T10:00:00.000Z'),
     confirmedAt: new Date('2026-06-01T10:30:00.000Z')
+  });
+
+  await prisma.student.updateMany({
+    data: {
+      instructorId: defaultInstructorId
+    }
   });
 }
 

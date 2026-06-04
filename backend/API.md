@@ -121,7 +121,7 @@ Response `200`:
 
 ### GET /students
 
-Возвращает всех учеников с user, manual packages и skills.
+Возвращает всех учеников с user, instructor, manual packages и skills.
 
 Request body: отсутствует.
 
@@ -147,6 +147,15 @@ Response `200`:
       "displayName": "Алексей",
       "role": "STUDENT"
     },
+    "instructor": {
+      "id": "instructor-id",
+      "firstName": "Никита",
+      "lastName": "Александров",
+      "telegramUsername": "Nikita_Alex_Vietnam",
+      "userId": "user-id",
+      "createdAt": "2026-06-01T15:00:00.000Z",
+      "updatedAt": "2026-06-01T15:00:00.000Z"
+    },
     "packages": [],
     "skills": []
   }
@@ -161,7 +170,7 @@ Notes:
 
 ### POST /students
 
-Создает ученика вручную. Backend также создает связанного `User` с ролью `STUDENT`, поэтому ученик появляется в списке/профиле Никиты даже без тренировок.
+Создает ученика вручную. Backend также создает связанного `User` с ролью `STUDENT` и назначает дефолтного инструктора, поэтому ученик появляется в списке/профиле Никиты даже без тренировок.
 
 DTO: `CreateStudentDto`.
 
@@ -195,6 +204,15 @@ Response `201`:
     "telegramUsername": "ivan_moto",
     "displayName": "Иван",
     "role": "STUDENT"
+  },
+  "instructor": {
+    "id": "instructor-id",
+    "firstName": "Никита",
+    "lastName": "Александров",
+    "telegramUsername": "Nikita_Alex_Vietnam",
+    "userId": "user-id",
+    "createdAt": "2026-06-01T15:00:00.000Z",
+    "updatedAt": "2026-06-01T15:00:00.000Z"
   },
   "packages": [],
   "skills": []
@@ -236,6 +254,15 @@ Response `200`:
     "telegramUsername": "ivan_moto",
     "displayName": "Иван",
     "role": "STUDENT"
+  },
+  "instructor": {
+    "id": "instructor-id",
+    "firstName": "Никита",
+    "lastName": "Александров",
+    "telegramUsername": "Nikita_Alex_Vietnam",
+    "userId": "user-id",
+    "createdAt": "2026-06-01T15:00:00.000Z",
+    "updatedAt": "2026-06-01T15:00:00.000Z"
   },
   "packages": [],
   "skills": [],
@@ -289,7 +316,7 @@ Request:
 }
 ```
 
-Response `200`: обновленный student с `user`, `packages`, `skills`.
+Response `200`: обновленный student с `user`, `instructor`, `packages`, `skills`.
 
 Prisma transaction:
 
@@ -364,6 +391,57 @@ Validation:
 - `completedTrainings`: integer `0-1000`.
 - `completedTrainings <= totalTrainings`.
 - `paymentStatus`: `unpaid | paid | partial`.
+
+## Instructors
+
+### GET /instructors
+
+Возвращает список инструкторов с их учениками.
+
+Response `200`:
+
+```json
+[
+  {
+    "id": "instructor-id",
+    "firstName": "Никита",
+    "lastName": "Александров",
+    "telegramUsername": "Nikita_Alex_Vietnam",
+    "userId": "user-id",
+    "createdAt": "2026-06-01T15:00:00.000Z",
+    "updatedAt": "2026-06-01T15:00:00.000Z",
+    "students": [
+      {
+        "id": "student-id",
+        "name": "Алексей",
+        "telegramUsername": "alex_moto",
+        "level": "BASIC",
+        "createdAt": "2026-06-01T15:07:44.000Z",
+        "updatedAt": "2026-06-02T06:00:00.000Z"
+      }
+    ]
+  }
+]
+```
+
+### GET /instructors/:id/profile
+
+Возвращает профиль инструктора и его список учеников.
+
+Path params:
+
+| Name | Type | Required | Description |
+| --- | --- | --- | --- |
+| `id` | UUID | yes | Instructor id. |
+
+Response `200`: instructor with `students`.
+
+Validation:
+
+- `firstName`: string `1-120`.
+- `lastName`: string `1-120`.
+- `telegramUsername`: unique string `1-120`.
+- `students`: array of student summaries.
 
 ## Skills
 
@@ -1000,6 +1078,7 @@ Checks:
   level: StudentLevel;
   focus?: string;
   nextTrainingPlan?: string;
+  instructorId?: string;
 }
 ```
 
@@ -1012,6 +1091,7 @@ Checks:
   level?: StudentLevel;
   focus?: string;
   nextTrainingPlan?: string;
+  instructorId?: string;
 }
 ```
 

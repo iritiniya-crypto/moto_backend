@@ -5,9 +5,12 @@
   "description": "Backend foundation for Moto Mini App",
   "scripts": {
     "build": "nest build",
+    "prebuild": "npm run test",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "lint": "eslint \"src/**/*.ts\" \"prisma/**/*.ts\"",
+    "test": "tsx test/run-tests.ts",
+    "precommit": "npm run lint && npm run test",
+    "lint": "eslint --fix \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\" \"prisma/**/*.ts\"",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

@@ -189,7 +189,7 @@ export class BookingSlotsService {
     });
   }
 
-  async cancel(slotId: string, dto: CancelBookingSlotDto = {}) {
+  async cancel(slotId: string, _dto: CancelBookingSlotDto = {}) {
     const { notificationPayload, updatedSlot } = await this.prisma.$transaction(async (tx) => {
       const slot = await tx.bookingSlot.findUnique({
         where: { id: slotId },

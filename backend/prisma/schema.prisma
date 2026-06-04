@@ -50,15 +50,32 @@ model User {
   updatedAt        DateTime @updatedAt
 
   studentProfile     Student?
+  instructorProfile  Instructor?
   instructedSlots    BookingSlot[]       @relation("InstructorSlots")
   requestedSlots     BookingSlot[]       @relation("RequestedBy")
   createdReports     TrainingReport[]    @relation("ReportAuthor")
   calendarSyncEvents CalendarSyncEvent[]
 }
 
+model Instructor {
+  id               String   @id @default(uuid())
+  firstName        String
+  lastName         String
+  telegramUsername String   @unique
+  userId           String?  @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user     User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  students Student[]
+
+  @@index([lastName, firstName])
+}
+
 model Student {
   id               String       @id @default(uuid())
   userId           String       @unique
+  instructorId     String       @default("11111111-1111-1111-1111-111111111111")
   name             String
   telegramUsername String?
   level            StudentLevel @default(BEGINNER)
@@ -68,13 +85,16 @@ model Student {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skills          StudentSkill[]
-  slots           BookingSlot[]
-  reports         TrainingReport[]
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instructor Instructor  @relation(fields: [instructorId], references: [id], onDelete: Restrict)
+  skills     StudentSkill[]
+  slots      BookingSlot[]
+  reports    TrainingReport[]
   trainingHistory TrainingHistory[]
-  videos          TrainingVideo[]
-  packages        TrainingPackage[]
+  videos     TrainingVideo[]
+  packages   TrainingPackage[]
+
+  @@index([instructorId])
 }
 
 model Skill {

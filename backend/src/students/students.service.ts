@@ -16,6 +16,9 @@ export class StudentsService {
     return this.prisma.student.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
+        instructor: {
+          select: this.instructorSelect()
+        },
         user: {
           select: {
             id: true,
@@ -46,6 +49,9 @@ export class StudentsService {
     const student = await this.prisma.student.findUnique({
       where: { id },
       include: {
+        instructor: {
+          select: this.instructorSelect()
+        },
         user: {
           select: {
             id: true,
@@ -92,6 +98,8 @@ export class StudentsService {
   async create(dto: CreateStudentDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const instructorId = dto.instructorId ?? (await this.findDefaultInstructorOrThrow()).id;
+
         const user = await tx.user.create({
           data: {
             displayName: dto.name,
@@ -103,6 +111,7 @@ export class StudentsService {
         return tx.student.create({
           data: {
             userId: user.id,
+            instructorId,
             name: dto.name,
             telegramUsername: dto.telegramUsername,
             level: dto.level,
@@ -120,6 +129,8 @@ export class StudentsService {
 
   async update(studentId: string, dto: UpdateStudentDto) {
     const student = await this.findStudentOrThrow(studentId);
+    const instructorId =
+      dto.instructorId !== undefined ? (await this.findInstructorOrThrow(dto.instructorId)).id : student.instructorId;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -136,6 +147,7 @@ export class StudentsService {
         return tx.student.update({
           where: { id: studentId },
           data: {
+            instructorId,
             name: dto.name,
             telegramUsername: dto.telegramUsername,
             level: dto.level,
@@ -299,6 +311,28 @@ export class StudentsService {
     });
   }
 
+  private findDefaultInstructorOrThrow() {
+    return this.prisma.instructor.findFirst({
+      orderBy: { createdAt: 'asc' }
+    }).then((instructor) => {
+      if (!instructor) {
+        throw new NotFoundException('Instructor was not found');
+      }
+
+      return instructor;
+    });
+  }
+
+  private findInstructorOrThrow(instructorId: string) {
+    return this.prisma.instructor.findUnique({ where: { id: instructorId } }).then((instructor) => {
+      if (!instructor) {
+        throw new NotFoundException(`Instructor ${instructorId} was not found`);
+      }
+
+      return instructor;
+    });
+  }
+
   private toPackageResponse(trainingPackage: {
     id: string;
     studentId: string;
@@ -336,6 +370,9 @@ export class StudentsService {
           role: true
         }
       },
+      instructor: {
+        select: this.instructorSelect()
+      },
       packages: {
         orderBy: { createdAt: 'desc' as const }
       },
@@ -356,5 +393,17 @@ export class StudentsService {
     if (error instanceof PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new ConflictException('Student with this telegramUsername already exists');
     }
+  }
+
+  private instructorSelect() {
+    return {
+      id: true,
+      firstName: true,
+      lastName: true,
+      telegramUsername: true,
+      userId: true,
+      createdAt: true,
+      updatedAt: true
+    };
   }
 }

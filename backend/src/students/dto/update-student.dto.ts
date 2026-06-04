@@ -1,5 +1,5 @@
 import { StudentLevel } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class UpdateStudentDto {
   @IsOptional()
@@ -23,4 +23,8 @@ export class UpdateStudentDto {
   @IsOptional()
   @IsString()
   nextTrainingPlan?: string;
+
+  @IsOptional()
+  @IsUUID()
+  instructorId?: string;
 }

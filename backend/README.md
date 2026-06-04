@@ -23,6 +23,16 @@ npm run prisma:seed
 npm run start:dev
 ```
 
+## Quality Checks
+
+```bash
+npm run test
+npm run build
+```
+
+`npm run build` now runs `npm run test` first via the `prebuild` hook.
+The repository pre-commit hook also runs `npm run lint && npm run test`.
+
 API prefix: `http://localhost:3000/api`
 
 Dev auth is enabled by default and attaches a development user to every request:
@@ -36,6 +46,8 @@ req.user = {
 
 ## Domain Notes
 
+- Instructors are stored as a dedicated entity with first name, last name, Telegram username, and assigned students.
+- The default seeded instructor is Nikita Александров (`@Nikita_Alex_Vietnam`).
 - Booking slot statuses: `available`, `requested`, `confirmed`, `completed`, `cancelled`.
 - Training packages are manual records. They are not automatically calculated from training history.
 - A completed training has a report and a training history record.
@@ -47,6 +59,8 @@ req.user = {
 ```text
 GET /api/students
 GET /api/students/:id/profile
+GET /api/instructors
+GET /api/instructors/:id/profile
 GET /api/skills
 GET /api/booking-slots
 GET /api/instructor/calendar
