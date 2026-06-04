@@ -3,3 +3,4 @@ dist
 .env
 .DS_Store
 coverage
+moto_mini_app_dump.sql

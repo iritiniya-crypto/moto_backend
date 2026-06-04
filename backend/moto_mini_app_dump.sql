@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict Opvjuunfn8VDED6q049V0M5X7H96OABPf3sL9r8S0ah3OSbhXwcceWRvAEUdaHR
+\restrict sYGgDqeeUutAYErkpw8NKCiae1tMwaASKzU2MUDfoNWwwSCRWUGlu3PlR5HNlha
 
 -- Dumped from database version 16.14
 -- Dumped by pg_dump version 16.14
@@ -144,6 +144,23 @@ CREATE TABLE public."CalendarSyncEvent" (
 ALTER TABLE public."CalendarSyncEvent" OWNER TO moto;
 
 --
+-- Name: Instructor; Type: TABLE; Schema: public; Owner: moto
+--
+
+CREATE TABLE public."Instructor" (
+    id text NOT NULL,
+    "firstName" text NOT NULL,
+    "lastName" text NOT NULL,
+    "telegramUsername" text NOT NULL,
+    "userId" text,
+    "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    "updatedAt" timestamp(3) without time zone NOT NULL
+);
+
+
+ALTER TABLE public."Instructor" OWNER TO moto;
+
+--
 -- Name: Skill; Type: TABLE; Schema: public; Owner: moto
 --
 
@@ -172,7 +189,8 @@ CREATE TABLE public."Student" (
     "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" timestamp(3) without time zone NOT NULL,
     focus text,
-    "nextTrainingPlan" text
+    "nextTrainingPlan" text,
+    "instructorId" text DEFAULT '11111111-1111-1111-1111-111111111111'::text NOT NULL
 );
 
 
@@ -324,21 +342,23 @@ b3542d69-9109-4921-9221-c582189ee618	2026-06-11 10:00:00	2026-06-11 11:30:00	com
 d6308ff7-b286-463d-b75b-3e3b34433669	2026-06-25 10:00:00	2026-06-25 11:30:00	available	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	\N	\N	\N	\N	\N	\N	2026-06-03 16:27:32.454	2026-06-03 16:27:32.454	\N	\N	\N	\N	\N	\N	\N
 ded0f518-bc9a-4694-be0d-14ab37ba254b	2026-06-05 15:00:00	2026-06-05 16:30:00	confirmed	Заявка на тренировку	Учебная площадка	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	38788506-c200-4a8d-8f06-00567e1681e9	83926141-4dd7-4df4-b55c-710699023a6d	2026-06-01 09:00:00	2026-06-02 12:07:27.731	\N	\N	2026-06-01 15:16:08.019	2026-06-02 12:07:27.731	\N	\N	Заявка на тренировку	\N	Встречаемся у въезда на площадку, возьмите закрытую обувь.	\N	\N
 8464d0b2-be60-4c9b-ae90-f7bd86d8e022	2026-06-26 10:00:00	2026-06-26 11:30:00	completed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	24de067a-8d7d-4f52-ba85-8e22909e5499	3179fbdf-26e1-4854-8db2-9c9b7343e5c9	2026-06-03 16:27:32.76	2026-06-03 16:27:32.782	\N	\N	2026-06-03 16:27:32.733	2026-06-03 16:27:32.816	утро	cancel flow	Учебная площадка	https://maps.example.com/cancel	confirmed	\N	\N
-c21b86e1-1718-4341-a346-f92aa27d7044	2026-06-03 14:30:00	2026-06-03 16:00:00	requested	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-03 16:57:25.497	\N	\N	\N	2026-06-03 16:06:57.945	2026-06-03 16:57:25.498	Не знаю / нужна консультация		\N	\N	\N	\N	\N
 b07e67f4-c71f-4b9f-981b-0f367393545f	2026-06-16 12:00:00	2026-06-16 13:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	8d3b8b10-52a3-434a-b63b-90a6cd74e52e	6ed99503-c829-460b-ae43-264cb550ec94	2026-06-02 12:24:09.292	2026-06-02 12:24:09.428	\N	\N	2026-06-02 12:24:09.221	2026-06-02 12:24:09.43	\N	\N	Площадка 2	\N	Переносим	\N	\N
 83837106-b6ab-4483-8aab-55a574abcf14	2026-06-03 14:30:00	2026-06-03 16:00:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-03 15:41:44.988	2026-06-03 16:57:44.062	\N	\N	2026-06-02 12:26:58.333	2026-06-03 16:57:44.063	Не знаю / нужна консультация		Площадка Запад	https://maps.google.com/?q=Ploshchadka+Zapad	Встречаемся у въезда на площадку, возьмите закрытую обувь.	2026-06-16 14:30:00	90
-1fe1bb20-9a4d-4c66-a8c9-8b0be68f8839	2026-06-21 10:00:00	2026-06-21 11:30:00	requested	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-03 17:03:48.988	\N	\N	\N	2026-06-03 16:27:30.244	2026-06-03 17:03:48.989	Не знаю / нужна консультация		\N	\N	\N	\N	\N
 384a3ed6-2281-42d1-8a31-e39c87614164	2026-06-24 12:00:00	2026-06-24 13:30:00	requested	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-03 17:04:37.731	\N	\N	\N	2026-06-03 16:27:32.229	2026-06-03 17:04:37.732	Не знаю / нужна консультация		\N	\N	\N	\N	\N
 5ca685db-fbcc-4597-ab54-e05e80de5f34	2026-05-18 06:00:00	2026-05-18 07:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	5cb7c51f-7212-4202-a9f3-bdf3d1329945	cf2be56d-0a87-4f37-b9fb-ba8dc0ead90c	2026-06-03 10:37:35.328	2026-06-03 10:53:29.679	\N	\N	2026-06-03 10:37:35.318	2026-06-03 10:53:29.68	\N	\N	Свободный слот	\N	Встречаемся у въезда на площадку, возьмите закрытую обувь.	2026-05-17 14:30:00	90
 d06dbec9-09bf-4f1c-a6a8-23e76f061cba	2026-06-26 10:00:00	2026-06-26 11:30:00	completed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	905aae25-b7d8-4fa3-bae2-708950b29ee7	81466204-7645-4f0a-b486-b27723e83d4c	2026-06-03 11:31:02.509	2026-06-03 11:31:02.511	\N	\N	2026-06-03 11:31:02.508	2026-06-03 11:31:02.52	утро	cancel flow	Учебная площадка	https://maps.example.com/cancel	confirmed	\N	\N
 6a3bc619-df79-4c54-8908-51892ab1ac53	2026-06-24 12:00:00	2026-06-24 13:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-03 16:06:18.041	2026-06-03 16:06:30.174	\N	\N	2026-06-03 15:54:43.786	2026-06-03 16:06:30.175	Не знаю / нужна консультация		Площадка Запад	https://maps.google.com/?q=Ploshchadka+Zapad	Встречаемся у въезда на площадку, возьмите закрытую обувь.	\N	\N
 64c91c56-27fe-4a05-9c97-62c561b1dbcc	2026-06-26 10:00:00	2026-06-26 11:30:00	completed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	009df4af-ace7-4022-a62a-a246616e16b3	7d56ef7c-ea30-4c35-a13f-5fc6b886a78a	2026-06-03 11:56:49.202	2026-06-03 11:56:49.208	\N	\N	2026-06-03 11:56:49.196	2026-06-03 11:56:49.221	утро	cancel flow	Учебная площадка	https://maps.example.com/cancel	confirmed	\N	\N
-4d77828d-b49c-4630-a457-a1157fba41c1	2026-06-03 06:00:00	2026-06-03 07:30:00	requested	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	bc67b5de-c791-4c9c-a8f1-efd7308f02b1	90246eba-dce1-4b0b-a566-7362d7638050	2026-06-03 16:23:03.528	\N	\N	\N	2026-06-03 16:23:03.502	2026-06-03 16:23:03.529	today	check	\N	\N	\N	\N	\N
 e5325982-36cc-4107-b75d-61cdc989726a	2026-06-03 12:00:00	2026-06-03 13:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	bc67b5de-c791-4c9c-a8f1-efd7308f02b1	90246eba-dce1-4b0b-a566-7362d7638050	2026-06-03 16:23:03.598	2026-06-03 16:23:03.608	\N	\N	2026-06-03 16:23:03.589	2026-06-03 16:23:03.609	today	check	Площадка	\N	\N	\N	\N
 fdb1026a-3c7b-4ef3-b61e-df81cc81093f	2026-06-03 10:00:00	2026-06-03 11:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	bc67b5de-c791-4c9c-a8f1-efd7308f02b1	90246eba-dce1-4b0b-a566-7362d7638050	2026-06-03 16:23:03.563	2026-06-03 17:04:59.793	\N	\N	2026-06-03 16:23:03.548	2026-06-03 17:04:59.795	today	check	today	\N	Встречаемся у въезда на площадку, возьмите закрытую обувь.	2026-06-03 08:00:00	90
 b66cf370-c429-4262-821c-9a84ea929ddc	2026-06-23 10:00:00	2026-06-23 11:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	6011d9d6-e0e3-46ce-9640-5af0a378a3e9	321621d9-50ca-4b29-94d0-bd6d35c309b2	2026-06-03 15:54:43.727	2026-06-03 15:54:43.764	\N	\N	2026-06-03 15:54:43.709	2026-06-03 15:54:43.765	утро	cancel flow	Учебная площадка	https://maps.example.com/cancel	confirmed	\N	\N
 2d281eea-287e-468a-b1bb-49136cfc7274	2026-06-26 10:00:00	2026-06-26 11:30:00	completed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	d383e257-b6c1-4c37-94e0-41cac17ddf30	343559b6-1893-48ff-93d9-1238e068ccfd	2026-06-03 15:54:43.986	2026-06-03 15:54:44.016	\N	\N	2026-06-03 15:54:43.962	2026-06-03 15:54:44.065	утро	cancel flow	Учебная площадка	https://maps.example.com/cancel	confirmed	\N	\N
+4d77828d-b49c-4630-a457-a1157fba41c1	2026-06-03 06:00:00	2026-06-03 07:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	bc67b5de-c791-4c9c-a8f1-efd7308f02b1	90246eba-dce1-4b0b-a566-7362d7638050	2026-06-03 16:23:03.528	2026-06-04 12:24:23.074	\N	\N	2026-06-03 16:23:03.502	2026-06-04 12:24:23.075	today	check	Площадка Запад	https://maps.google.com/?q=Ploshchadka+Zapad	Встречаемся у въезда на площадку, возьмите закрытую обувь.	\N	\N
 10d844e8-adcd-4f73-a3c5-c0740562f9ba	2026-03-02 07:00:00	2026-03-02 08:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	22fa8b97-1c35-4ec1-83c2-777f8a7ea1ff	c93757a8-3b35-4a25-b1b8-cb02a30180dd	2026-06-03 15:51:04.042	2026-06-03 15:51:04.055	\N	\N	2026-06-03 15:51:04.034	2026-06-03 15:51:04.056	\N	\N	Площадка B	\N	перенос на 2 марта	2026-03-01 14:00:00	90
+c21b86e1-1718-4341-a346-f92aa27d7044	2026-06-25 10:00:00	2026-06-25 11:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-03 16:57:25.497	2026-06-04 06:34:30.1	\N	\N	2026-06-03 16:06:57.945	2026-06-04 06:34:30.101	Не знаю / нужна консультация		Серпантин	https://maps.google.com/?q=Serpantin+Nha+Trang	Встречаемся у въезда на площадку, возьмите закрытую обувь.	2026-06-03 14:30:00	90
+81e2405b-5dfe-459a-8327-3fed100f872c	2026-06-11 10:30:00	2026-06-11 12:30:00	available	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	\N	\N	\N	\N	\N	\N	2026-06-04 11:02:39.626	2026-06-04 11:02:39.626	\N	\N	\N	\N	\N	\N	\N
+a6d59dc0-28a7-4af1-bcc3-46406758fc11	2026-06-05 02:30:00	2026-06-05 04:00:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-04 12:28:36.101	2026-06-04 12:29:17.086	\N	\N	2026-06-04 12:28:08.585	2026-06-04 12:29:17.087	Город		Город	https://maps.google.com/?q=Nha+Trang+city+center	Встречаемся у въезда на площадку, возьмите закрытую обувь.	\N	\N
+1fe1bb20-9a4d-4c66-a8c9-8b0be68f8839	2026-06-21 10:00:00	2026-06-21 11:30:00	confirmed	Свободный слот	\N	\N	8e3b8bdc-9863-4f69-9b3d-76ad1ae0bbf8	1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	2026-06-03 17:03:48.988	2026-06-04 12:57:19.255	\N	\N	2026-06-03 16:27:30.244	2026-06-04 12:57:19.256	Не знаю / нужна консультация		Площадка Запад	https://maps.app.goo.gl/G2id3Bi9tEbFR6t57	Встречаемся у въезда на площадку, возьмите закрытую обувь.	\N	\N
 \.
 
 
@@ -347,6 +367,15 @@ b66cf370-c429-4262-821c-9a84ea929ddc	2026-06-23 10:00:00	2026-06-23 11:30:00	con
 --
 
 COPY public."CalendarSyncEvent" (id, "bookingSlotId", provider, "externalEventId", payload, "syncedAt", "createdById", "createdAt", "updatedAt") FROM stdin;
+\.
+
+
+--
+-- Data for Name: Instructor; Type: TABLE DATA; Schema: public; Owner: moto
+--
+
+COPY public."Instructor" (id, "firstName", "lastName", "telegramUsername", "userId", "createdAt", "updatedAt") FROM stdin;
+11111111-1111-1111-1111-111111111111	Никита	Александров	Nikita_Alex_Vietnam	\N	2026-06-04 11:51:24.73	2026-06-04 11:51:24.73
 \.
 
 
@@ -370,32 +399,32 @@ e3d2e667-b0f9-44e9-96b3-4cb95ccb244d	Змейка	\N	2026-06-01 15:16:07.2	2026-
 -- Data for Name: Student; Type: TABLE DATA; Schema: public; Owner: moto
 --
 
-COPY public."Student" (id, "userId", name, "telegramUsername", level, notes, "createdAt", "updatedAt", focus, "nextTrainingPlan") FROM stdin;
-1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	Алексей	alex_moto	BASIC	Учится уверенно проходить площадку.	2026-06-01 15:16:07.37	2026-06-01 15:16:07.37	\N	\N
-38788506-c200-4a8d-8f06-00567e1681e9	83926141-4dd7-4df4-b55c-710699023a6d	Мария	maria_rides	BEGINNER	\N	2026-06-01 15:16:07.467	2026-06-01 15:16:07.467	\N	\N
-7262fa73-93dd-4a8f-8552-2928375eea81	262901ee-ab80-47ca-abc9-21072c8d742b	Pass4 Test Student	pass4_1780379921053	INTERMEDIATE	\N	2026-06-02 05:58:41.313	2026-06-02 05:58:41.625	Восьмерка	Медленная езда
-80003e02-50ff-41a7-b63b-57effc95f6f2	32a416a2-f22d-48dd-afb9-670a053a1c16	Postman Write Student	postman_write_1780380185	INTERMEDIATE	\N	2026-06-02 06:03:05.542	2026-06-02 06:03:05.767	Восьмерка	Медленная езда
-690e7c99-d99e-4f24-aa90-6fd02c3495da	3731d8ca-2942-4505-a2fe-5f7d25eefbf6	иии	\N	BEGINNER	\N	2026-06-02 10:58:15.023	2026-06-02 10:58:59.484	иии	иии
-8d3b8b10-52a3-434a-b63b-90a6cd74e52e	6ed99503-c829-460b-ae43-264cb550ec94	Reschedule Test	reschedule_1780403048479	BEGINNER	\N	2026-06-02 12:24:09.036	2026-06-02 12:24:09.036	\N	\N
-5cb7c51f-7212-4202-a9f3-bdf3d1329945	cf2be56d-0a87-4f37-b9fb-ba8dc0ead90c	Previous Fields Test	previous_1780483055123	BEGINNER	\N	2026-06-03 10:37:35.276	2026-06-03 10:37:35.276	\N	\N
-85d55262-80df-4652-b9e4-c6fcc581df4a	3dbea658-48d7-4ad0-a1c4-a5b7bd34c504	cancel_requested Student	cancel_requested_1780486262241_1830	BEGINNER	\N	2026-06-03 11:31:02.338	2026-06-03 11:31:02.338	\N	\N
-24fe585a-21c0-4a3d-97bd-e96aef13ecb2	ef302906-7231-4f2a-865f-97a1b4d03f64	cancel_confirmed Student	cancel_confirmed_1780486262241_2195	BEGINNER	\N	2026-06-03 11:31:02.432	2026-06-03 11:31:02.432	\N	\N
-64efbcc4-f282-4fb4-9c5b-728ad6428fe3	17f729d3-eac7-4918-affd-6fe8b6916369	cancel_reschedule Student	cancel_reschedule_1780486262241_7509	BEGINNER	\N	2026-06-03 11:31:02.473	2026-06-03 11:31:02.473	\N	\N
-905aae25-b7d8-4fa3-bae2-708950b29ee7	81466204-7645-4f0a-b486-b27723e83d4c	cancel_completed Student	cancel_completed_1780486262241_6398	BEGINNER	\N	2026-06-03 11:31:02.504	2026-06-03 11:31:02.504	\N	\N
-5622d606-d5b1-405a-a8d9-8f9928156c95	023057a0-265e-4179-98f8-9b4aada6b710	cancel_requested Student	cancel_requested_1780487808897_32346	BEGINNER	\N	2026-06-03 11:56:49.011	2026-06-03 11:56:49.011	\N	\N
-a0119962-1690-4d11-b491-5acdbdd876c5	e195e25f-7cef-4261-8081-9f70265bd48f	cancel_confirmed Student	cancel_confirmed_1780487808897_44581	BEGINNER	\N	2026-06-03 11:56:49.083	2026-06-03 11:56:49.083	\N	\N
-470305ab-b669-45c9-9c5b-c66cdadc862f	44b2f1f3-0702-4885-a20b-537b02d80466	cancel_reschedule Student	cancel_reschedule_1780487808897_4719	BEGINNER	\N	2026-06-03 11:56:49.141	2026-06-03 11:56:49.141	\N	\N
-009df4af-ace7-4022-a62a-a246616e16b3	7d56ef7c-ea30-4c35-a13f-5fc6b886a78a	cancel_completed Student	cancel_completed_1780487808897_63754	BEGINNER	\N	2026-06-03 11:56:49.188	2026-06-03 11:56:49.188	\N	\N
-22fa8b97-1c35-4ec1-83c2-777f8a7ea1ff	c93757a8-3b35-4a25-b1b8-cb02a30180dd	Reschedule New Flow	new_reschedule_1780501863623	BEGINNER	\N	2026-06-03 15:51:03.921	2026-06-03 15:51:03.921	\N	\N
-8b77744d-f48c-4e47-916a-94e0db938149	40d33190-6304-4423-9ab9-9bc25fe3a1f7	cancel_requested Student	cancel_requested_1780502082806_26574	BEGINNER	\N	2026-06-03 15:54:42.993	2026-06-03 15:54:42.993	\N	\N
-d6775f2a-fcb9-4493-b0ff-7a54a68d73d6	0f22fc3a-d1bf-4309-9500-5795aea901fe	cancel_confirmed Student	cancel_confirmed_1780502082806_39702	BEGINNER	\N	2026-06-03 15:54:43.504	2026-06-03 15:54:43.504	\N	\N
-6011d9d6-e0e3-46ce-9640-5af0a378a3e9	321621d9-50ca-4b29-94d0-bd6d35c309b2	cancel_reschedule Student	cancel_reschedule_1780502082806_2148	BEGINNER	\N	2026-06-03 15:54:43.687	2026-06-03 15:54:43.687	\N	\N
-d383e257-b6c1-4c37-94e0-41cac17ddf30	343559b6-1893-48ff-93d9-1238e068ccfd	cancel_completed Student	cancel_completed_1780502082806_79388	BEGINNER	\N	2026-06-03 15:54:43.935	2026-06-03 15:54:43.935	\N	\N
-bc67b5de-c791-4c9c-a8f1-efd7308f02b1	90246eba-dce1-4b0b-a566-7362d7638050	rollback Student	rollback_1780503782562_2789	BEGINNER	\N	2026-06-03 16:23:03.394	2026-06-03 16:23:03.394	\N	\N
-1ef825f1-76cc-4577-aa65-e6584defdaf9	6bd02805-cf2a-49ad-9c3b-dfbd2c452467	cancel_requested Student	cancel_requested_1780504050087_51741	BEGINNER	\N	2026-06-03 16:27:30.207	2026-06-03 16:27:30.207	\N	\N
-e3ae5ef5-8541-45e6-b667-3820d62d09fc	4ab113f8-911b-4cac-a1b7-962df3d0db4b	cancel_confirmed Student	cancel_confirmed_1780504050087_76665	BEGINNER	\N	2026-06-03 16:27:30.311	2026-06-03 16:27:30.311	\N	\N
-2ea2db58-633c-489e-a09b-1c0565a0d13e	6fb4d5a6-a58f-4459-905f-5fe45458c7dd	cancel_reschedule Student	cancel_reschedule_1780504050087_14291	BEGINNER	\N	2026-06-03 16:27:32.155	2026-06-03 16:27:32.155	\N	\N
-24de067a-8d7d-4f52-ba85-8e22909e5499	3179fbdf-26e1-4854-8db2-9c9b7343e5c9	cancel_completed Student	cancel_completed_1780504050087_52590	BEGINNER	\N	2026-06-03 16:27:32.69	2026-06-03 16:27:32.69	\N	\N
+COPY public."Student" (id, "userId", name, "telegramUsername", level, notes, "createdAt", "updatedAt", focus, "nextTrainingPlan", "instructorId") FROM stdin;
+1827d794-aff6-4597-95b8-63528da32a02	f7f46558-12a7-47d6-a178-1c4aaf047a4e	Алексей	alex_moto	BASIC	Учится уверенно проходить площадку.	2026-06-01 15:16:07.37	2026-06-01 15:16:07.37	\N	\N	11111111-1111-1111-1111-111111111111
+38788506-c200-4a8d-8f06-00567e1681e9	83926141-4dd7-4df4-b55c-710699023a6d	Мария	maria_rides	BEGINNER	\N	2026-06-01 15:16:07.467	2026-06-01 15:16:07.467	\N	\N	11111111-1111-1111-1111-111111111111
+7262fa73-93dd-4a8f-8552-2928375eea81	262901ee-ab80-47ca-abc9-21072c8d742b	Pass4 Test Student	pass4_1780379921053	INTERMEDIATE	\N	2026-06-02 05:58:41.313	2026-06-02 05:58:41.625	Восьмерка	Медленная езда	11111111-1111-1111-1111-111111111111
+80003e02-50ff-41a7-b63b-57effc95f6f2	32a416a2-f22d-48dd-afb9-670a053a1c16	Postman Write Student	postman_write_1780380185	INTERMEDIATE	\N	2026-06-02 06:03:05.542	2026-06-02 06:03:05.767	Восьмерка	Медленная езда	11111111-1111-1111-1111-111111111111
+690e7c99-d99e-4f24-aa90-6fd02c3495da	3731d8ca-2942-4505-a2fe-5f7d25eefbf6	иии	\N	BEGINNER	\N	2026-06-02 10:58:15.023	2026-06-02 10:58:59.484	иии	иии	11111111-1111-1111-1111-111111111111
+8d3b8b10-52a3-434a-b63b-90a6cd74e52e	6ed99503-c829-460b-ae43-264cb550ec94	Reschedule Test	reschedule_1780403048479	BEGINNER	\N	2026-06-02 12:24:09.036	2026-06-02 12:24:09.036	\N	\N	11111111-1111-1111-1111-111111111111
+5cb7c51f-7212-4202-a9f3-bdf3d1329945	cf2be56d-0a87-4f37-b9fb-ba8dc0ead90c	Previous Fields Test	previous_1780483055123	BEGINNER	\N	2026-06-03 10:37:35.276	2026-06-03 10:37:35.276	\N	\N	11111111-1111-1111-1111-111111111111
+85d55262-80df-4652-b9e4-c6fcc581df4a	3dbea658-48d7-4ad0-a1c4-a5b7bd34c504	cancel_requested Student	cancel_requested_1780486262241_1830	BEGINNER	\N	2026-06-03 11:31:02.338	2026-06-03 11:31:02.338	\N	\N	11111111-1111-1111-1111-111111111111
+24fe585a-21c0-4a3d-97bd-e96aef13ecb2	ef302906-7231-4f2a-865f-97a1b4d03f64	cancel_confirmed Student	cancel_confirmed_1780486262241_2195	BEGINNER	\N	2026-06-03 11:31:02.432	2026-06-03 11:31:02.432	\N	\N	11111111-1111-1111-1111-111111111111
+64efbcc4-f282-4fb4-9c5b-728ad6428fe3	17f729d3-eac7-4918-affd-6fe8b6916369	cancel_reschedule Student	cancel_reschedule_1780486262241_7509	BEGINNER	\N	2026-06-03 11:31:02.473	2026-06-03 11:31:02.473	\N	\N	11111111-1111-1111-1111-111111111111
+905aae25-b7d8-4fa3-bae2-708950b29ee7	81466204-7645-4f0a-b486-b27723e83d4c	cancel_completed Student	cancel_completed_1780486262241_6398	BEGINNER	\N	2026-06-03 11:31:02.504	2026-06-03 11:31:02.504	\N	\N	11111111-1111-1111-1111-111111111111
+5622d606-d5b1-405a-a8d9-8f9928156c95	023057a0-265e-4179-98f8-9b4aada6b710	cancel_requested Student	cancel_requested_1780487808897_32346	BEGINNER	\N	2026-06-03 11:56:49.011	2026-06-03 11:56:49.011	\N	\N	11111111-1111-1111-1111-111111111111
+a0119962-1690-4d11-b491-5acdbdd876c5	e195e25f-7cef-4261-8081-9f70265bd48f	cancel_confirmed Student	cancel_confirmed_1780487808897_44581	BEGINNER	\N	2026-06-03 11:56:49.083	2026-06-03 11:56:49.083	\N	\N	11111111-1111-1111-1111-111111111111
+470305ab-b669-45c9-9c5b-c66cdadc862f	44b2f1f3-0702-4885-a20b-537b02d80466	cancel_reschedule Student	cancel_reschedule_1780487808897_4719	BEGINNER	\N	2026-06-03 11:56:49.141	2026-06-03 11:56:49.141	\N	\N	11111111-1111-1111-1111-111111111111
+009df4af-ace7-4022-a62a-a246616e16b3	7d56ef7c-ea30-4c35-a13f-5fc6b886a78a	cancel_completed Student	cancel_completed_1780487808897_63754	BEGINNER	\N	2026-06-03 11:56:49.188	2026-06-03 11:56:49.188	\N	\N	11111111-1111-1111-1111-111111111111
+22fa8b97-1c35-4ec1-83c2-777f8a7ea1ff	c93757a8-3b35-4a25-b1b8-cb02a30180dd	Reschedule New Flow	new_reschedule_1780501863623	BEGINNER	\N	2026-06-03 15:51:03.921	2026-06-03 15:51:03.921	\N	\N	11111111-1111-1111-1111-111111111111
+8b77744d-f48c-4e47-916a-94e0db938149	40d33190-6304-4423-9ab9-9bc25fe3a1f7	cancel_requested Student	cancel_requested_1780502082806_26574	BEGINNER	\N	2026-06-03 15:54:42.993	2026-06-03 15:54:42.993	\N	\N	11111111-1111-1111-1111-111111111111
+d6775f2a-fcb9-4493-b0ff-7a54a68d73d6	0f22fc3a-d1bf-4309-9500-5795aea901fe	cancel_confirmed Student	cancel_confirmed_1780502082806_39702	BEGINNER	\N	2026-06-03 15:54:43.504	2026-06-03 15:54:43.504	\N	\N	11111111-1111-1111-1111-111111111111
+6011d9d6-e0e3-46ce-9640-5af0a378a3e9	321621d9-50ca-4b29-94d0-bd6d35c309b2	cancel_reschedule Student	cancel_reschedule_1780502082806_2148	BEGINNER	\N	2026-06-03 15:54:43.687	2026-06-03 15:54:43.687	\N	\N	11111111-1111-1111-1111-111111111111
+d383e257-b6c1-4c37-94e0-41cac17ddf30	343559b6-1893-48ff-93d9-1238e068ccfd	cancel_completed Student	cancel_completed_1780502082806_79388	BEGINNER	\N	2026-06-03 15:54:43.935	2026-06-03 15:54:43.935	\N	\N	11111111-1111-1111-1111-111111111111
+bc67b5de-c791-4c9c-a8f1-efd7308f02b1	90246eba-dce1-4b0b-a566-7362d7638050	rollback Student	rollback_1780503782562_2789	BEGINNER	\N	2026-06-03 16:23:03.394	2026-06-03 16:23:03.394	\N	\N	11111111-1111-1111-1111-111111111111
+1ef825f1-76cc-4577-aa65-e6584defdaf9	6bd02805-cf2a-49ad-9c3b-dfbd2c452467	cancel_requested Student	cancel_requested_1780504050087_51741	BEGINNER	\N	2026-06-03 16:27:30.207	2026-06-03 16:27:30.207	\N	\N	11111111-1111-1111-1111-111111111111
+e3ae5ef5-8541-45e6-b667-3820d62d09fc	4ab113f8-911b-4cac-a1b7-962df3d0db4b	cancel_confirmed Student	cancel_confirmed_1780504050087_76665	BEGINNER	\N	2026-06-03 16:27:30.311	2026-06-03 16:27:30.311	\N	\N	11111111-1111-1111-1111-111111111111
+2ea2db58-633c-489e-a09b-1c0565a0d13e	6fb4d5a6-a58f-4459-905f-5fe45458c7dd	cancel_reschedule Student	cancel_reschedule_1780504050087_14291	BEGINNER	\N	2026-06-03 16:27:32.155	2026-06-03 16:27:32.155	\N	\N	11111111-1111-1111-1111-111111111111
+24de067a-8d7d-4f52-ba85-8e22909e5499	3179fbdf-26e1-4854-8db2-9c9b7343e5c9	новый студент	cancel_completed_1780504050087_52590	BEGINNER	\N	2026-06-03 16:27:32.69	2026-06-04 13:34:23.496			11111111-1111-1111-1111-111111111111
 \.
 
 
@@ -443,6 +472,12 @@ COPY public."TrainingPackage" (id, "studentId", title, "totalSessions", "usedSes
 90a59b2b-7b8e-441b-8b68-72b89acf2ee8	7262fa73-93dd-4a8f-8552-2928375eea81	Пакет 5 тренировок	5	1	paid	active	2026-06-02 06:00:00	2026-07-02 06:00:00	\N	2026-06-02 05:58:41.442	2026-06-02 05:58:41.442
 e93fccda-98d1-4a85-a134-ace935c1326d	80003e02-50ff-41a7-b63b-57effc95f6f2	Пакет 5 тренировок	5	1	paid	active	2026-06-02 06:00:00	2026-07-02 06:00:00	\N	2026-06-02 06:03:05.636	2026-06-02 06:03:05.636
 0dad2f9d-055a-4f4e-ad5a-52c4926b595b	690e7c99-d99e-4f24-aa90-6fd02c3495da	Пакет 7 тренировок	7	0	unpaid	active	\N	\N	\N	2026-06-02 10:58:59.549	2026-06-02 10:58:59.549
+600e9528-a09c-4885-899a-be3f9d94a97f	24de067a-8d7d-4f52-ba85-8e22909e5499	Пакет 0 тренировок	0	0	unpaid	completed	\N	\N	\N	2026-06-04 13:23:28.942	2026-06-04 13:23:28.942
+5d6f1d45-93ad-4b99-a3d3-e93a268fe7e0	24de067a-8d7d-4f52-ba85-8e22909e5499	Пакет 0 тренировок	0	0	unpaid	completed	\N	\N	\N	2026-06-04 13:23:37.974	2026-06-04 13:23:37.974
+79da9fda-e7cf-4fe6-8587-8600b040a24c	24de067a-8d7d-4f52-ba85-8e22909e5499	Пакет 0 тренировок	0	0	unpaid	completed	\N	\N	\N	2026-06-04 13:23:41.731	2026-06-04 13:23:41.731
+fddf469a-9ca9-4849-b78a-69d3437b9d4c	24de067a-8d7d-4f52-ba85-8e22909e5499	Пакет 0 тренировок	0	0	unpaid	completed	\N	\N	\N	2026-06-04 13:24:27.134	2026-06-04 13:24:27.134
+fca4aafa-53c9-4396-aaa2-6164bbb7dc41	24de067a-8d7d-4f52-ba85-8e22909e5499	Пакет 0 тренировок	0	0	unpaid	completed	\N	\N	\N	2026-06-04 13:27:38.083	2026-06-04 13:27:38.083
+f90cb78b-d0b2-4418-9bd8-0d941a58c657	24de067a-8d7d-4f52-ba85-8e22909e5499	Пакет 0 тренировок	0	0	unpaid	active	\N	\N	\N	2026-06-04 13:28:31.157	2026-06-04 13:34:23.538
 \.
 
 
@@ -502,7 +537,7 @@ c93757a8-3b35-4a25-b1b8-cb02a30180dd	\N	new_reschedule_1780501863623	Reschedule 
 6bd02805-cf2a-49ad-9c3b-dfbd2c452467	\N	cancel_requested_1780504050087_51741	cancel_requested Student	STUDENT	2026-06-03 16:27:30.187	2026-06-03 16:27:30.187
 4ab113f8-911b-4cac-a1b7-962df3d0db4b	\N	cancel_confirmed_1780504050087_76665	cancel_confirmed Student	STUDENT	2026-06-03 16:27:30.31	2026-06-03 16:27:30.31
 6fb4d5a6-a58f-4459-905f-5fe45458c7dd	\N	cancel_reschedule_1780504050087_14291	cancel_reschedule Student	STUDENT	2026-06-03 16:27:32.149	2026-06-03 16:27:32.149
-3179fbdf-26e1-4854-8db2-9c9b7343e5c9	\N	cancel_completed_1780504050087_52590	cancel_completed Student	STUDENT	2026-06-03 16:27:32.684	2026-06-03 16:27:32.684
+3179fbdf-26e1-4854-8db2-9c9b7343e5c9	\N	cancel_completed_1780504050087_52590	новый студент	STUDENT	2026-06-03 16:27:32.684	2026-06-04 13:34:23.494
 \.
 
 
@@ -517,6 +552,7 @@ aadffea6-6ad2-4c30-87e0-e8d5ca6e6f7c	7a48e6b6bf0ff8b5c48a082554304f02b9b20d74546
 024ab603-748e-442f-92c6-2c4ee184de07	6b7602290ee968866724d44f7065f0d83c27b0fe1014047b2a6cabdf4a263049	2026-06-03 10:36:11.311558+00	20260603000000_add_previous_reschedule_fields	\N	\N	2026-06-03 10:36:11.302237+00	1
 72bc97e0-51a1-4dd0-accd-9c78f4594abe	c3b08bdd7b4e61a454d1d122cb77c43312b450ae9abb98c287586b1c1e1d880f	2026-06-03 15:49:15.903121+00	20260603010000_reschedule_target_slot_flow	\N	\N	2026-06-03 15:49:15.883589+00	1
 3f182d26-8663-4a39-8ee2-33acf41fa6cf	96ff94468ab47fa109280243b77546e9f6dc8cb4ed99102294b826d0e9a4add1	2026-06-03 16:13:35.50563+00	20260603020000_revert_reschedule_target_slot_flow	\N	\N	2026-06-03 16:13:35.49309+00	1
+90a5699f-65b4-49ff-843d-ecd70dde2c82	4fc724a69b06bd991133d508f8cfa3ac184311359814cf8674ae1b2f66dd3bcd	2026-06-04 11:51:24.746633+00	20260604000000_add_instructor_entity	\N	\N	2026-06-04 11:51:24.730245+00	1
 \.
 
 
@@ -534,6 +570,14 @@ ALTER TABLE ONLY public."BookingSlot"
 
 ALTER TABLE ONLY public."CalendarSyncEvent"
     ADD CONSTRAINT "CalendarSyncEvent_pkey" PRIMARY KEY (id);
+
+
+--
+-- Name: Instructor Instructor_pkey; Type: CONSTRAINT; Schema: public; Owner: moto
+--
+
+ALTER TABLE ONLY public."Instructor"
+    ADD CONSTRAINT "Instructor_pkey" PRIMARY KEY (id);
 
 
 --
@@ -637,6 +681,27 @@ CREATE INDEX "CalendarSyncEvent_provider_externalEventId_idx" ON public."Calenda
 
 
 --
+-- Name: Instructor_lastName_firstName_idx; Type: INDEX; Schema: public; Owner: moto
+--
+
+CREATE INDEX "Instructor_lastName_firstName_idx" ON public."Instructor" USING btree ("lastName", "firstName");
+
+
+--
+-- Name: Instructor_telegramUsername_key; Type: INDEX; Schema: public; Owner: moto
+--
+
+CREATE UNIQUE INDEX "Instructor_telegramUsername_key" ON public."Instructor" USING btree ("telegramUsername");
+
+
+--
+-- Name: Instructor_userId_key; Type: INDEX; Schema: public; Owner: moto
+--
+
+CREATE UNIQUE INDEX "Instructor_userId_key" ON public."Instructor" USING btree ("userId");
+
+
+--
 -- Name: Skill_name_key; Type: INDEX; Schema: public; Owner: moto
 --
 
@@ -648,6 +713,13 @@ CREATE UNIQUE INDEX "Skill_name_key" ON public."Skill" USING btree (name);
 --
 
 CREATE UNIQUE INDEX "StudentSkill_studentId_skillId_key" ON public."StudentSkill" USING btree ("studentId", "skillId");
+
+
+--
+-- Name: Student_instructorId_idx; Type: INDEX; Schema: public; Owner: moto
+--
+
+CREATE INDEX "Student_instructorId_idx" ON public."Student" USING btree ("instructorId");
 
 
 --
@@ -747,6 +819,14 @@ ALTER TABLE ONLY public."CalendarSyncEvent"
 
 
 --
+-- Name: Instructor Instructor_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: moto
+--
+
+ALTER TABLE ONLY public."Instructor"
+    ADD CONSTRAINT "Instructor_userId_fkey" FOREIGN KEY ("userId") REFERENCES public."User"(id) ON UPDATE CASCADE ON DELETE SET NULL;
+
+
+--
 -- Name: StudentSkill StudentSkill_skillId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: moto
 --
 
@@ -760,6 +840,14 @@ ALTER TABLE ONLY public."StudentSkill"
 
 ALTER TABLE ONLY public."StudentSkill"
     ADD CONSTRAINT "StudentSkill_studentId_fkey" FOREIGN KEY ("studentId") REFERENCES public."Student"(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: Student Student_instructorId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: moto
+--
+
+ALTER TABLE ONLY public."Student"
+    ADD CONSTRAINT "Student_instructorId_fkey" FOREIGN KEY ("instructorId") REFERENCES public."Instructor"(id) ON UPDATE CASCADE ON DELETE RESTRICT;
 
 
 --
@@ -854,5 +942,5 @@ ALTER TABLE ONLY public."TrainingVideo"
 -- PostgreSQL database dump complete
 --
 
-\unrestrict Opvjuunfn8VDED6q049V0M5X7H96OABPf3sL9r8S0ah3OSbhXwcceWRvAEUdaHR
+\unrestrict sYGgDqeeUutAYErkpw8NKCiae1tMwaASKzU2MUDfoNWwwSCRWUGlu3PlR5HNlha
 
