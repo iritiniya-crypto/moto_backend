@@ -18,10 +18,27 @@ export class BookingSlotsService {
   ) {}
 
   findAll(query: FindBookingSlotsQueryDto = {}) {
+    const where: any = {};
+
+    if (query.studentId) {
+      const studentFilter = {
+        OR: [
+          { studentId: query.studentId },
+          { status: 'available' }
+        ]
+      };
+
+      if (query.status) {
+        where.AND = [studentFilter, { status: query.status }];
+      } else {
+        where.OR = studentFilter.OR;
+      }
+    } else if (query.status) {
+      where.status = query.status;
+    }
+
     return this.prisma.bookingSlot.findMany({
-      where: {
-        status: query.status
-      },
+      where,
       orderBy: { startsAt: 'asc' },
       include: {
         student: {
@@ -143,15 +160,55 @@ export class BookingSlotsService {
     const slot = await this.findSlotOrThrow(slotId);
     this.assertAnySlotStatus(slot.status, ['requested', 'reschedule'], 'Only requested or reschedule slots can be confirmed');
 
-    return this.prisma.bookingSlot.update({
-      where: { id: slotId },
-      data: {
-        status: BookingSlotStatus.confirmed,
-        confirmedAt: new Date(),
-        finalLocation: dto.finalLocation,
-        finalLocationUrl: dto.finalLocationUrl,
-        instructorComment: dto.instructorComment
+    const confirmationData = {
+      status: BookingSlotStatus.confirmed,
+      confirmedAt: new Date(),
+      finalLocation: dto.finalLocation,
+      finalLocationUrl: dto.finalLocationUrl,
+      instructorComment: dto.instructorComment
+    };
+
+    if (slot.status !== BookingSlotStatus.reschedule) {
+      return this.prisma.bookingSlot.update({
+        where: { id: slotId },
+        data: confirmationData
+      });
+    }
+
+    if (!slot.previousStartsAt || !slot.previousDurationMinutes) {
+      throw new ConflictException('Reschedule slot has no previous time to release');
+    }
+
+    const previousStartsAt = slot.previousStartsAt;
+    const previousDurationMinutes = slot.previousDurationMinutes;
+    const previousEndsAt = new Date(previousStartsAt.getTime() + previousDurationMinutes * 60_000);
+
+    return this.prisma.$transaction(async (tx) => {
+      const existingPreviousTimeSlot = await tx.bookingSlot.findFirst({
+        where: {
+          id: { not: slot.id },
+          instructorId: slot.instructorId,
+          startsAt: previousStartsAt,
+          endsAt: previousEndsAt
+        }
+      });
+
+      if (!existingPreviousTimeSlot) {
+        await tx.bookingSlot.create({
+          data: {
+            startsAt: previousStartsAt,
+            endsAt: previousEndsAt,
+            status: BookingSlotStatus.available,
+            title: 'Свободный слот',
+            instructorId: slot.instructorId
+          }
+        });
       }
+
+      return tx.bookingSlot.update({
+        where: { id: slotId },
+        data: confirmationData
+      });
     });
   }
 

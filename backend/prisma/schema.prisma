@@ -7,6 +7,183 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id                 String              @id @default(uuid())
+  telegramId         String?             @unique
+  telegramUsername   String?             @unique
+  displayName        String
+  role               UserRole
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  instructedSlots    BookingSlot[]       @relation("InstructorSlots")
+  requestedSlots     BookingSlot[]       @relation("RequestedBy")
+  calendarSyncEvents CalendarSyncEvent[]
+  studentProfile     Student?
+  createdReports     TrainingReport[]    @relation("ReportAuthor")
+}
+
+model Student {
+  id               String            @id @default(uuid())
+  userId           String            @unique
+  name             String
+  telegramUsername String?
+  level            StudentLevel      @default(BEGINNER)
+  notes            String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  focus            String?
+  nextTrainingPlan String?
+  slots            BookingSlot[]
+  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skills           StudentSkill[]
+  trainingHistory  TrainingHistory[]
+  packages         TrainingPackage[]
+  reports          TrainingReport[]
+  videos           TrainingVideo[]
+}
+
+model Skill {
+  id          String         @id @default(uuid())
+  name        String         @unique
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  students    StudentSkill[]
+}
+
+model StudentSkill {
+  id        String   @id @default(uuid())
+  studentId String
+  skillId   String
+  percent   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  skill     Skill    @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, skillId])
+}
+
+model BookingSlot {
+  id                      String              @id @default(uuid())
+  startsAt                DateTime
+  endsAt                  DateTime
+  status                  BookingSlotStatus   @default(available)
+  title                   String?
+  location                String?
+  notes                   String?
+  instructorId            String?
+  studentId               String?
+  requestedById           String?
+  requestedAt             DateTime?
+  confirmedAt             DateTime?
+  cancelledAt             DateTime?
+  cancellationReason      String?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  preference              String?
+  studentComment          String?
+  finalLocation           String?
+  finalLocationUrl        String?
+  instructorComment       String?
+  previousStartsAt        DateTime?
+  previousDurationMinutes Int?
+  instructor              User?               @relation("InstructorSlots", fields: [instructorId], references: [id])
+  requestedBy             User?               @relation("RequestedBy", fields: [requestedById], references: [id])
+  student                 Student?            @relation(fields: [studentId], references: [id])
+  calendarEvents          CalendarSyncEvent[]
+  trainingRecord          TrainingHistory?
+  report                  TrainingReport?
+
+  @@index([startsAt])
+  @@index([status])
+  @@index([studentId])
+}
+
+model TrainingReport {
+  id              String           @id @default(uuid())
+  bookingSlotId   String           @unique
+  studentId       String
+  instructorId    String?
+  trainedOn       String
+  successes       String
+  focusNext       String
+  levelChange     StudentLevel?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  trainingHistory TrainingHistory?
+  bookingSlot     BookingSlot      @relation(fields: [bookingSlotId], references: [id], onDelete: Cascade)
+  instructor      User?            @relation("ReportAuthor", fields: [instructorId], references: [id])
+  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  videos          TrainingVideo[]
+}
+
+model TrainingHistory {
+  id            String          @id @default(uuid())
+  studentId     String
+  bookingSlotId String?         @unique
+  reportId      String?         @unique
+  trainedAt     DateTime
+  summary       String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  bookingSlot   BookingSlot?    @relation(fields: [bookingSlotId], references: [id], onDelete: Cascade)
+  report        TrainingReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  student       Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  videos        TrainingVideo[]
+
+  @@index([studentId, trainedAt])
+}
+
+model TrainingVideo {
+  id                String           @id @default(uuid())
+  studentId         String
+  trainingHistoryId String?
+  reportId          String?
+  telegramUrl       String
+  title             String?
+  notes             String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  report            TrainingReport?  @relation(fields: [reportId], references: [id])
+  student           Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  trainingHistory   TrainingHistory? @relation(fields: [trainingHistoryId], references: [id])
+}
+
+model TrainingPackage {
+  id            String                       @id @default(uuid())
+  studentId     String
+  title         String
+  totalSessions Int
+  usedSessions  Int                          @default(0)
+  paymentStatus TrainingPackagePaymentStatus @default(unpaid)
+  status        TrainingPackageStatus        @default(active)
+  purchasedAt   DateTime?
+  expiresAt     DateTime?
+  notes         String?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  student       Student                      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, status])
+}
+
+model CalendarSyncEvent {
+  id              String      @id @default(uuid())
+  bookingSlotId   String
+  provider        String
+  externalEventId String?
+  payload         Json?
+  syncedAt        DateTime?
+  createdById     String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  bookingSlot     BookingSlot @relation(fields: [bookingSlotId], references: [id], onDelete: Cascade)
+  createdBy       User?       @relation(fields: [createdById], references: [id])
+
+  @@index([provider, externalEventId])
+}
+
 enum UserRole {
   INSTRUCTOR
   STUDENT
@@ -38,191 +215,4 @@ enum TrainingPackageStatus {
   active
   completed
   cancelled
-}
-
-model User {
-  id               String   @id @default(uuid())
-  telegramId       String?  @unique
-  telegramUsername String?  @unique
-  displayName      String
-  role             UserRole
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-
-  studentProfile     Student?
-  instructedSlots    BookingSlot[]       @relation("InstructorSlots")
-  requestedSlots     BookingSlot[]       @relation("RequestedBy")
-  createdReports     TrainingReport[]    @relation("ReportAuthor")
-  calendarSyncEvents CalendarSyncEvent[]
-}
-
-model Student {
-  id               String       @id @default(uuid())
-  userId           String       @unique
-  name             String
-  telegramUsername String?
-  level            StudentLevel @default(BEGINNER)
-  focus            String?
-  nextTrainingPlan String?
-  notes            String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-
-  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  skills          StudentSkill[]
-  slots           BookingSlot[]
-  reports         TrainingReport[]
-  trainingHistory TrainingHistory[]
-  videos          TrainingVideo[]
-  packages        TrainingPackage[]
-}
-
-model Skill {
-  id          String   @id @default(uuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  students StudentSkill[]
-}
-
-model StudentSkill {
-  id        String   @id @default(uuid())
-  studentId String
-  skillId   String
-  percent   Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  skill   Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
-
-  @@unique([studentId, skillId])
-}
-
-model BookingSlot {
-  id                      String            @id @default(uuid())
-  startsAt                DateTime
-  endsAt                  DateTime
-  status                  BookingSlotStatus @default(available)
-  title                   String?
-  location                String?
-  notes                   String?
-  instructorId            String?
-  studentId               String?
-  requestedById           String?
-  requestedAt             DateTime?
-  confirmedAt             DateTime?
-  cancelledAt             DateTime?
-  cancellationReason      String?
-  preference              String?
-  studentComment          String?
-  finalLocation           String?
-  finalLocationUrl        String?
-  instructorComment       String?
-  previousStartsAt        DateTime?
-  previousDurationMinutes Int?
-  createdAt               DateTime          @default(now())
-  updatedAt               DateTime          @updatedAt
-
-  instructor     User?               @relation("InstructorSlots", fields: [instructorId], references: [id], onDelete: SetNull)
-  student        Student?            @relation(fields: [studentId], references: [id], onDelete: SetNull)
-  requestedBy    User?               @relation("RequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
-  report         TrainingReport?
-  trainingRecord TrainingHistory?
-  calendarEvents CalendarSyncEvent[]
-
-  @@index([startsAt])
-  @@index([status])
-  @@index([studentId])
-}
-
-model TrainingReport {
-  id            String        @id @default(uuid())
-  bookingSlotId String        @unique
-  studentId     String
-  instructorId  String?
-  trainedOn     String
-  successes     String
-  focusNext     String
-  levelChange   StudentLevel?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  bookingSlot     BookingSlot      @relation(fields: [bookingSlotId], references: [id], onDelete: Cascade)
-  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  instructor      User?            @relation("ReportAuthor", fields: [instructorId], references: [id], onDelete: SetNull)
-  trainingHistory TrainingHistory?
-  videos          TrainingVideo[]
-}
-
-model TrainingHistory {
-  id            String   @id @default(uuid())
-  studentId     String
-  bookingSlotId String?  @unique
-  reportId      String?  @unique
-  trainedAt     DateTime
-  summary       String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  student     Student         @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  bookingSlot BookingSlot?    @relation(fields: [bookingSlotId], references: [id], onDelete: Cascade)
-  report      TrainingReport? @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  videos      TrainingVideo[]
-
-  @@index([studentId, trainedAt])
-}
-
-model TrainingVideo {
-  id                String   @id @default(uuid())
-  studentId         String
-  trainingHistoryId String?
-  reportId          String?
-  telegramUrl       String
-  title             String?
-  notes             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  student         Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  trainingHistory TrainingHistory? @relation(fields: [trainingHistoryId], references: [id], onDelete: SetNull)
-  report          TrainingReport?  @relation(fields: [reportId], references: [id], onDelete: SetNull)
-}
-
-model TrainingPackage {
-  id            String                       @id @default(uuid())
-  studentId     String
-  title         String
-  totalSessions Int
-  usedSessions  Int                          @default(0)
-  paymentStatus TrainingPackagePaymentStatus @default(unpaid)
-  status        TrainingPackageStatus        @default(active)
-  purchasedAt   DateTime?
-  expiresAt     DateTime?
-  notes         String?
-  createdAt     DateTime                     @default(now())
-  updatedAt     DateTime                     @updatedAt
-
-  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-
-  @@index([studentId, status])
-}
-
-model CalendarSyncEvent {
-  id              String    @id @default(uuid())
-  bookingSlotId   String
-  provider        String
-  externalEventId String?
-  payload         Json?
-  syncedAt        DateTime?
-  createdById     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  bookingSlot BookingSlot @relation(fields: [bookingSlotId], references: [id], onDelete: Cascade)
-  createdBy   User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@index([provider, externalEventId])
 }
