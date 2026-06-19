@@ -1,10 +1,13 @@
 # Moto Mini App Backend API
 
-Документация актуальна на 04 июня 2026. Включает все endpoints, DTO с валидацией, типизацию для фронтенда.
+Документация актуальна на 19 июня 2026. Включает текущие endpoints, DTO с валидацией, Prisma transaction notes и интеграционные правила для frontend.
 
 Последние обновления:
-- Добавлен параметр `studentId` в GET /booking-slots для фильтрации слотов по студентам
-- Все DTO полностью задокументированы с типами полей и валидацией
+- Добавлена dedicated `Instructor` entity и endpoints `GET /instructors`, `GET /instructors/:id/profile`.
+- Зафиксирован текущий same-slot `reschedule` flow с `previousStartsAt` и `previousDurationMinutes`.
+- Добавлен student cancel flow `POST /booking-slots/:slotId/cancel` с notification hook.
+- Добавлен параметр `studentId` в `GET /booking-slots` для сценариев frontend.
+- Все DTO задокументированы с типами полей и validation rules.
 
 ## Base URL
 
@@ -540,14 +543,14 @@ Query params:
 | Name | Type | Required | Description |
 | --- | --- | --- | --- |
 | `status` | BookingSlotStatus | no | Filter by booking slot status. |
-| `studentId` | UUID | no | Filter slots for specific student: returns slots where student.id matches OR status is 'available'. |
+| `studentId` | UUID | no | Student-facing filter: returns slots where `studentId` matches OR `status = available`. |
 
 Examples:
 
 - `GET /booking-slots` - все слоты
 - `GET /booking-slots?status=confirmed` - только подтвержденные слоты
 - `GET /booking-slots?studentId=<uuid>` - слоты студента + доступные для записи
-- `GET /booking-slots?studentId=<uuid>&status=confirmed` - слоты студента или доступные, с фильтром по подтвержденному статусу
+- `GET /booking-slots?studentId=<uuid>&status=confirmed` - подтвержденные слоты этого студента
 
 Response `200`:
 
@@ -593,7 +596,8 @@ Notes:
 - `available` слот может иметь `student`, `requestedBy`, `report`, `trainingRecord` равными `null`.
 - `reschedule` означает перенос уже подтвержденной записи на другое время.
 - Для `reschedule` backend хранит старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`, чтобы UI мог показать "Было / Стало" после reload.
-- При фильтре по `studentId` возвращаются слоты, где либо `studentId` соответствует переданному значению, либо слот `available` (чтобы студент мог видеть свои тренировки и доступные для записи слоты).
+- При фильтре только по `studentId` возвращаются слоты, где либо `studentId` соответствует переданному значению, либо слот `available` (чтобы студент мог видеть свои тренировки и доступные для записи слоты).
+- При одновременном `studentId` и `status` backend применяет оба условия: `((studentId = :studentId) OR status = available) AND status = :status`. Например, `status=available` вернет доступные слоты, а `status=confirmed` вернет confirmed-слоты этого студента.
 
 ### POST /booking-slots
 
@@ -709,6 +713,8 @@ Checks:
 
 Переводит слот `requested -> confirmed` или `reschedule -> confirmed`.
 
+Для `requested` это обычный update одного slot. Для `reschedule` backend использует Prisma transaction: подтверждает тот же rescheduled slot и освобождает предыдущее время, если отдельного слота на старое время еще нет. Frontend при этом продолжает работать с тем же `slotId` как с перенесенной тренировкой.
+
 DTO: `ConfirmBookingSlotDto`.
 
 Request:
@@ -737,12 +743,21 @@ Checks:
 
 - slot exists.
 - slot status is `requested` or `reschedule`.
+- для `reschedule` должны быть заполнены `previousStartsAt` и `previousDurationMinutes`.
+
+Prisma transaction for `reschedule` confirmation:
+
+1. Проверить, есть ли отдельный слот на `previousStartsAt` / previous duration.
+2. Если такого слота нет, создать `available` slot на старое время.
+3. Обновить текущий rescheduled slot до `confirmed`.
 
 ### POST /booking-slots/:slotId/reschedule
 
 Переводит уже подтвержденную запись `confirmed -> reschedule` на том же `slotId`.
 
 Backend сохраняет старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`, а новое время записывает в `startsAt/endsAt`. Эти поля persist в PostgreSQL и возвращаются после reload.
+
+Важно: endpoint не создает новый booking slot. Он меняет время у той же записи и сохраняет старое время в previous-полях.
 
 DTO: `RescheduleBookingSlotDto`.
 
@@ -1331,7 +1346,19 @@ Checks:
 
 ## Prisma Migration
 
-Write endpoints use migration:
+Current migration history:
+
+```text
+20260601000000_initial_foundation
+20260602000000_write_endpoints_foundation
+20260602010000_add_reschedule_booking_slot_status
+20260603000000_add_previous_reschedule_fields
+20260603010000_reschedule_target_slot_flow
+20260603020000_revert_reschedule_target_slot_flow
+20260604000000_add_instructor_entity
+```
+
+Write endpoints foundation:
 
 ```text
 prisma/migrations/20260602000000_write_endpoints_foundation/migration.sql
@@ -1341,17 +1368,23 @@ It adds:
 
 - `Student.focus`
 - `Student.nextTrainingPlan`
-- booking request/confirm fields:
-  - `BookingSlot.preference`
-  - `BookingSlot.studentComment`
-  - `BookingSlot.finalLocation`
-  - `BookingSlot.finalLocationUrl`
+- `BookingSlot.preference`
+- `BookingSlot.studentComment`
+- `BookingSlot.finalLocation`
+- `BookingSlot.finalLocationUrl`
 - `BookingSlot.instructorComment`
-- `BookingSlot.previousStartsAt`
-- `BookingSlot.previousDurationMinutes`
-
 - nullable `TrainingHistory.bookingSlotId`
 - nullable `TrainingHistory.reportId`
+
+Reschedule status migration:
+
+```text
+prisma/migrations/20260602010000_add_reschedule_booking_slot_status/migration.sql
+```
+
+It adds:
+
+- `BookingSlotStatus.reschedule`
 
 Reschedule persistence migration:
 
@@ -1363,6 +1396,27 @@ It adds:
 
 - `BookingSlot.previousStartsAt`
 - `BookingSlot.previousDurationMinutes`
+
+Historical two-slot reschedule migration and revert:
+
+```text
+prisma/migrations/20260603010000_reschedule_target_slot_flow/migration.sql
+prisma/migrations/20260603020000_revert_reschedule_target_slot_flow/migration.sql
+```
+
+The first migration added `BookingSlot.rescheduleSourceSlotId`; the second migration removed it. Current schema does not use `rescheduleSourceSlotId`.
+
+Instructor entity migration:
+
+```text
+prisma/migrations/20260604000000_add_instructor_entity/migration.sql
+```
+
+It adds:
+
+- `Instructor`
+- `Student.instructorId`
+- relation `Instructor.students`
 
 ## Postman / Newman
 
@@ -1455,6 +1509,7 @@ type UserRole = 'STUDENT' | 'INSTRUCTOR';
 interface Student {
   id: string;
   userId: string;
+  instructorId: string;
   name: string;
   telegramUsername: string;
   level: StudentLevel;
@@ -1464,8 +1519,27 @@ interface Student {
   createdAt: string;
   updatedAt: string;
   user: User;
+  instructor: Instructor;
   packages: TrainingPackage[];
   skills: StudentSkill[];
+}
+
+interface Instructor {
+  id: string;
+  firstName: string;
+  lastName: string;
+  telegramUsername: string;
+  userId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  students?: Array<{
+    id: string;
+    name: string;
+    telegramUsername?: string | null;
+    level: StudentLevel;
+    createdAt: string;
+    updatedAt: string;
+  }>;
 }
 
 interface BookingSlot {
@@ -1512,8 +1586,8 @@ interface TrainingPackage {
   totalTrainings: number;
   completedTrainings: number;
   paymentStatus: TrainingPackagePaymentStatus;
-  startedAt: string;
-  endedAt: string;
+  startedAt?: string | null;
+  endedAt?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -1545,20 +1619,20 @@ interface TrainingReport {
 interface TrainingHistory {
   id: string;
   studentId: string;
-  bookingSlotId?: string;
-  reportId?: string;
+  bookingSlotId?: string | null;
+  reportId?: string | null;
   trainedAt: string;
-  summary: string;
+  summary?: string | null;
   videos: TrainingVideo[];
-  report?: TrainingReport;
-  bookingSlot?: { id: string; status: BookingSlotStatus };
+  report?: TrainingReport | null;
+  bookingSlot?: { id: string; status: BookingSlotStatus } | null;
 }
 
 interface TrainingVideo {
   id: string;
   studentId: string;
-  trainingHistoryId: string;
-  reportId?: string;
+  trainingHistoryId?: string | null;
+  reportId?: string | null;
   telegramUrl: string;
   title?: string;
   notes?: string;
@@ -1596,6 +1670,7 @@ interface CreateStudentRequest {
   level: StudentLevel;
   focus?: string;
   nextTrainingPlan?: string;
+  instructorId?: string;
 }
 
 interface UpdateStudentRequest {
@@ -1604,6 +1679,7 @@ interface UpdateStudentRequest {
   level?: StudentLevel;
   focus?: string;
   nextTrainingPlan?: string;
+  instructorId?: string;
 }
 
 interface CreateBookingSlotRequest {
@@ -1732,4 +1808,3 @@ GET /api/booking-slots?studentId=550e8400-e29b-41d4-a716-446655440000
 **POST /students/:studentId/training-history/manual** - когда нет booking slot (тренировка не через систему бронирования)
 
 Позволяет добавить исторические тренировки без связи с booking slot.
-

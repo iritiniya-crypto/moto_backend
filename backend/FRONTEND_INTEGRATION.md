@@ -1,193 +1,329 @@
 # Moto Mini App Frontend Integration Guide
 
-Этот гайд поможет фронтенд разработчикам интегрировать Moto Mini App Backend в их приложение.
+Этот документ фиксирует текущий backend contract для постепенного перевода Vue frontend с mock/store на API. Frontend живет отдельно и из этого backend task не меняется.
 
-## Содержание
+## Source Of Truth
 
-- [Быстрый старт](#быстрый-старт)
-- [TypeScript Типы](#typescript-типы)
-- [API Документация](#api-документация)
-- [Примеры запросов](#примеры-запросов)
-- [Обработка ошибок](#обработка-ошибок)
-- [Доступные слоты для студента](#доступные-слоты-для-студента)
+- Подробный API contract: `API.md`.
+- Быстрая карта backend проекта: `README.md`.
+- Вспомогательные frontend-типы: `FRONTEND_TYPES.ts`.
+- Base URL локально: `http://localhost:3000/api`.
 
-## Быстрый старт
+Backend работает с global prefix `/api`, CORS включен, dev auth включен. Telegram auth пока не реализован.
 
-### 1. Скопировать типы
+## Current Backend Shape
 
-Скопируй содержимое файла `FRONTEND_TYPES.ts` в свой проект:
-
-```bash
-cp FRONTEND_TYPES.ts /path/to/your/frontend/types/
+```text
+src/
+  auth/
+  booking/
+  calendar/
+  config/
+  instructors/
+  notifications/
+  prisma/
+  reports/
+  skills/
+  students/
+  training-history/
+  users/
+  videos/
 ```
 
-### 2. Использовать базовый URL
+Основные доменные сущности:
 
-```typescript
-const API_BASE_URL = 'http://localhost:3000/api';
-// или на production
-const API_BASE_URL = 'https://api.moto-app.com/api';
+- `Instructor`: Никита и его ученики.
+- `Student`: профиль ученика, уровень, фокус, план, инструктор.
+- `BookingSlot`: календарный слот и запись.
+- `TrainingReport`: отчет после confirmed-тренировки.
+- `TrainingHistory`: история проведенных тренировок.
+- `TrainingVideo`: Telegram video links для конкретной тренировки.
+- `Skill` / `StudentSkill`: справочник навыков и проценты ученика.
+- `TrainingPackage`: ручной пакет тренировок.
+
+## Important Statuses
+
+```ts
+type BookingSlotStatus =
+  | 'available'
+  | 'requested'
+  | 'reschedule'
+  | 'confirmed'
+  | 'completed'
+  | 'cancelled';
 ```
 
-### 3. Создать API клиент
+Frontend buckets for Nikita:
 
-```typescript
-import { API_BASE_URL, Student, BookingSlot } from './types/FRONTEND_TYPES';
+```ts
+const newRequests = slots.filter((slot) => slot.status === 'requested');
+const rescheduleRequests = slots.filter((slot) => slot.status === 'reschedule');
+const todayTrainings = slots.filter((slot) =>
+  ['requested', 'reschedule', 'confirmed'].includes(slot.status) &&
+  isToday(new Date(slot.startsAt))
+);
+```
 
-class MotoApiClient {
-  private baseUrl = API_BASE_URL;
+Keep these buckets as the current expected behavior:
 
-  async getStudents(): Promise<Student[]> {
-    const response = await fetch(`${this.baseUrl}/students`);
-    if (!response.ok) throw new Error('Failed to fetch students');
-    return response.json();
-  }
+- Новые запросы: `requested`.
+- Запросы на перенос: `reschedule`.
+- Сегодня: `requested + reschedule + confirmed` на текущую дату.
+- Свободные слоты для записи: `available`.
+- Проведенные тренировки: `completed`.
 
-  async getStudentProfile(studentId: string): Promise<StudentProfile> {
-    const response = await fetch(`${this.baseUrl}/students/${studentId}/profile`);
-    if (!response.ok) throw new Error('Failed to fetch student profile');
-    return response.json();
-  }
+## Booking Slots
 
-  async getBookingSlots(query?: FindBookingSlotsQuery): Promise<BookingSlot[]> {
-    const params = new URLSearchParams();
-    if (query?.status) params.append('status', query.status);
-    if (query?.studentId) params.append('studentId', query.studentId);
-    
-    const url = `${this.baseUrl}/booking-slots${params.toString() ? '?' + params.toString() : ''}`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error('Failed to fetch booking slots');
-    return response.json();
-  }
+### Read Slots
 
-  // ... остальные методы
+```http
+GET /api/booking-slots
+GET /api/booking-slots?status=available
+GET /api/booking-slots?studentId=<studentId>
+GET /api/booking-slots?studentId=<studentId>&status=confirmed
+```
+
+`studentId` filter behavior:
+
+```sql
+(studentId = :studentId) OR (status = 'available')
+```
+
+When `status` is also passed, backend applies both conditions:
+
+```sql
+((studentId = :studentId) OR (status = 'available')) AND (status = :status)
+```
+
+Practical result:
+
+- `?studentId=<id>` returns student's own slots plus available slots.
+- `?studentId=<id>&status=available` returns available slots.
+- `?studentId=<id>&status=confirmed` returns confirmed slots for that student.
+
+### Request Flow
+
+```text
+available
+  POST /api/booking-slots/:slotId/request
+requested
+  POST /api/booking-slots/:slotId/confirm
+confirmed
+  POST /api/training-reports
+completed
+```
+
+Request:
+
+```ts
+await api.post(`/booking-slots/${slotId}/request`, {
+  studentId,
+  preference: 'утро',
+  studentComment: 'Хочу повторить базу'
+});
+```
+
+Confirm:
+
+```ts
+await api.post(`/booking-slots/${slotId}/confirm`, {
+  finalLocation: 'Учебная площадка',
+  finalLocationUrl: 'https://maps.example.com/track',
+  instructorComment: 'Берем конусы'
+});
+```
+
+### Reschedule Flow
+
+Current backend uses same-slot reschedule.
+
+```text
+confirmed
+  POST /api/booking-slots/:slotId/reschedule
+reschedule
+  POST /api/booking-slots/:slotId/confirm
+confirmed
+```
+
+`POST /reschedule` updates the same `slotId`:
+
+- new time goes to `startsAt` / `endsAt`;
+- old confirmed time goes to `previousStartsAt` / `previousDurationMinutes`;
+- status becomes `reschedule`.
+
+Example:
+
+```ts
+await api.post(`/booking-slots/${slotId}/reschedule`, {
+  startsAt: '2026-05-18T06:00:00.000Z',
+  durationMinutes: 90,
+  instructorComment: 'Переносим из-за погоды'
+});
+```
+
+Frontend can show persisted "Было / Стало" after reload:
+
+```ts
+const previous = slot.previousStartsAt;
+const previousDuration = slot.previousDurationMinutes;
+const next = slot.startsAt;
+```
+
+Important backend detail: confirming `reschedule` keeps the training on the same `slotId`. During confirmation, backend also frees the previous time if there is no separate available slot for it yet. Frontend should still render the rescheduled training itself from the same booking slot.
+
+### Student Cancel Flow
+
+```http
+POST /api/booking-slots/:slotId/cancel
+```
+
+Allowed source statuses:
+
+- `requested`
+- `reschedule`
+- `confirmed`
+
+Rejected source statuses:
+
+- `available`
+- `completed`
+- `cancelled`
+
+Optional body:
+
+```json
+{
+  "reason": "не получается приехать"
 }
 ```
 
-## TypeScript Типы
+After cancel backend reuses the same slot and clears booking fields:
 
-### Основные типы
+- `status = available`
+- `studentId = null`
+- `requestedById = null`
+- `requestedAt = null`
+- `confirmedAt = null`
+- `preference = null`
+- `studentComment = null`
+- `finalLocation = null`
+- `finalLocationUrl = null`
+- `instructorComment = null`
+- `previousStartsAt = null`
+- `previousDurationMinutes = null`
 
-```typescript
-import {
-  // Enums
-  StudentLevel,
-  BookingSlotStatus,
-  TrainingPackagePaymentStatus,
-  UserRole,
+The slot appears again in:
 
-  // Entity Types
-  Student,
-  StudentProfile,
-  BookingSlot,
-  TrainingReport,
-  TrainingHistory,
-  TrainingVideo,
-  Skill,
-  TrainingPackage,
-  
-  // Request Types
-  CreateStudentRequest,
-  UpdateStudentRequest,
-  CreateBookingSlotRequest,
-  ConfirmBookingSlotRequest,
-  
-  // Constants
-  STUDENT_LEVELS,
-  BOOKING_SLOT_STATUSES,
-  PAYMENT_STATUSES,
-  SEED_SKILLS,
-  
-  // Helper Functions
-  canCancelBookingSlot,
-  canEditBookingSlot,
-  getRemainingTrainings
-} from './types/FRONTEND_TYPES';
+```http
+GET /api/booking-slots?status=available
 ```
 
-## API Документация
+Cancel also calls `NotificationsService.notifyInstructorTrainingCancelled(payload)`. Current implementation is a stub/log; Telegram Bot API can be connected there later without changing frontend calls.
 
-Полная документация доступна в файле `API.md`:
+## Students
 
-```bash
-cat API.md
+```http
+GET   /api/students
+POST  /api/students
+GET   /api/students/:id/profile
+PATCH /api/students/:studentId
 ```
 
-### Основные endpoints:
+Create student:
 
-| Метод | URL | Описание |
-| --- | --- | --- |
-| GET | `/students` | Получить всех студентов |
-| GET | `/students/:id/profile` | Получить профиль студента |
-| POST | `/students` | Создать нового студента |
-| PATCH | `/students/:id` | Обновить студента |
-| GET | `/booking-slots` | Получить слоты бронирования |
-| POST | `/booking-slots` | Создать слот |
-| POST | `/booking-slots/:id/request` | Запросить слот |
-| POST | `/booking-slots/:id/confirm` | Подтвердить слот |
-| POST | `/booking-slots/:id/cancel` | Отменить слот |
-| GET | `/skills` | Получить все навыки |
-| PUT | `/students/:id/skills` | Обновить прогресс навыков |
-| POST | `/training-reports` | Создать отчет о тренировке |
-
-## Примеры запросов
-
-### Получить слоты студента
-
-```typescript
-// Получить все слоты студента + доступные для записи
-const studentId = '550e8400-e29b-41d4-a716-446655440000';
-const slots = await apiClient.getBookingSlots({ studentId });
-
-// Получить только подтвержденные слоты студента
-const confirmedSlots = await apiClient.getBookingSlots({ 
-  studentId,
-  status: 'confirmed' 
-});
-
-// Получить все доступные слоты
-const availableSlots = await apiClient.getBookingSlots({ status: 'available' });
-```
-
-### Создать студента
-
-```typescript
-const newStudent = await apiClient.createStudent({
-  name: 'Иван Иванов',
+```ts
+await api.post('/students', {
+  name: 'Иван',
   telegramUsername: 'ivan_moto',
   level: 'BEGINNER',
   focus: 'Овал',
-  nextTrainingPlan: 'Произвольная езда'
+  nextTrainingPlan: 'Площадка и торможение'
 });
 ```
 
-### Запросить слот
+Backend creates linked `User` and assigns the default instructor when `instructorId` is not provided. The student appears in Nikita's profile even before any training.
 
-```typescript
-const slotId = '660e8400-e29b-41d4-a716-446655440000';
-const studentId = '550e8400-e29b-41d4-a716-446655440000';
+## Instructors
 
-const result = await apiClient.requestBookingSlot(slotId, {
-  studentId,
-  preference: 'утро',
-  studentComment: 'Хочу повторить базовые навыки'
+```http
+GET /api/instructors
+GET /api/instructors/:id/profile
+```
+
+Use these endpoints when frontend needs Nikita's student list from the backend rather than local store/mock data.
+
+Seeded default instructor:
+
+```text
+Никита Александров
+@Nikita_Alex_Vietnam
+```
+
+## Packages
+
+```http
+GET /api/students/:studentId/package
+PUT /api/students/:studentId/package
+```
+
+Packages are manual and are not recalculated from training history.
+
+```ts
+await api.put(`/students/${studentId}/package`, {
+  totalTrainings: 3,
+  completedTrainings: 0,
+  paymentStatus: 'paid',
+  startedAt: '2026-06-19T09:00:00.000Z',
+  endedAt: null,
+  isActive: true
 });
 ```
 
-### Подтвердить слот
+Current API-to-Prisma mapping:
 
-```typescript
-const confirmedSlot = await apiClient.confirmBookingSlot(slotId, {
-  finalLocation: 'Учебная площадка',
-  finalLocationUrl: 'https://maps.google.com/...',
-  instructorComment: 'Берем конусы и маты'
-});
+| API field | Prisma field |
+| --- | --- |
+| `totalTrainings` | `TrainingPackage.totalSessions` |
+| `completedTrainings` | `TrainingPackage.usedSessions` |
+| `startedAt` | `TrainingPackage.purchasedAt` |
+| `endedAt` | `TrainingPackage.expiresAt` |
+| `isActive` | `TrainingPackage.status === active` |
+
+## Skills
+
+```http
+GET /api/skills
+GET /api/students/:studentId/skills
+PUT /api/students/:studentId/skills
 ```
 
-### Создать отчет о тренировке
+Update student skills:
 
-```typescript
-const report = await apiClient.createTrainingReport({
+```ts
+await api.put(`/students/${studentId}/skills`, [
+  {
+    skillId: 'skill-uuid',
+    progressPercent: 80
+  }
+]);
+```
+
+Validation:
+
+- `progressPercent` is integer `0-100`.
+- Duplicate `skillId` values are rejected.
+- Missing `StudentSkill` rows are created, existing rows are updated.
+
+## Reports, History, Videos
+
+Create report after a confirmed training:
+
+```http
+POST /api/training-reports
+```
+
+```ts
+await api.post('/training-reports', {
   slotId,
   studentId,
   trainedSkills: ['Овал', 'Торможение'],
@@ -197,149 +333,68 @@ const report = await apiClient.createTrainingReport({
 });
 ```
 
-## Обработка ошибок
+Backend transaction:
 
-### HTTP Status Codes
+1. Checks slot exists.
+2. Checks `slot.status = confirmed`.
+3. Checks student exists.
+4. Creates `TrainingReport`.
+5. Creates `TrainingHistory`.
+6. Updates slot to `completed`.
+7. Updates student level when `levelUpdate` is provided.
 
-```typescript
-type ApiError = {
-  message: string;
-  error: string;
-  statusCode: number;
-};
+Manual history without booking slot:
 
-async function handleApiError(response: Response): Promise<ApiError> {
-  const data = await response.json();
-  return {
-    message: data.message,
-    error: data.error,
-    statusCode: response.status
-  };
-}
+```http
+POST /api/students/:studentId/training-history/manual
 ```
 
-### Типовые ошибки
+Add Telegram video to training history:
 
-| Status | Ошибка | Решение |
-| --- | --- | --- |
-| 400 | Invalid DTO | Проверить валидацию данных перед отправкой |
-| 404 | Student not found | Убедиться, что studentId корректен |
-| 409 | Slot already requested | Слот уже занят другим студентом |
-| 409 | Only available slots can be requested | Можно запросить только доступный слот |
-
-### Пример обработки ошибок
-
-```typescript
-try {
-  const slot = await apiClient.confirmBookingSlot(slotId, data);
-} catch (error) {
-  if (error.statusCode === 404) {
-    console.error('Слот не найден');
-  } else if (error.statusCode === 409) {
-    console.error('Статус слота не соответствует', error.message);
-  } else {
-    console.error('Неизвестная ошибка', error);
-  }
-}
+```http
+POST /api/training-history/:historyId/videos
 ```
 
-## Доступные слоты для студента
-
-### Логика фильтрации
-
-Когда вы запрашиваете слоты с параметром `?studentId=<uuid>`, API возвращает:
-
-1. **Все слоты, где `studentId` совпадает** - текущие и прошлые тренировки студента
-2. **Или слоты с `status = 'available'`** - доступные для записи
-
-```sql
-WHERE 
-  (studentId = :studentId) OR (status = 'available')
-```
-
-Это позволяет студенту видеть:
-- ✅ Свои pending запросы (`requested`)
-- ✅ Проведенные тренировки (`completed`)
-- ✅ Перенесенные тренировки (`reschedule`)
-- ✅ Подтвержденные запись (`confirmed`)
-- ✅ Отмененные тренировки (`cancelled`)
-- ✅ **Плюс** все доступные слоты для новой записи
-
-### Пример использования
-
-```typescript
-// Студент видит свои тренировки + доступные для записи
-const myAndAvailable = await apiClient.getBookingSlots({ 
-  studentId: currentStudentId 
+```ts
+await api.post(`/training-history/${historyId}/videos`, {
+  title: 'Овал после корректировки',
+  telegramUrl: 'https://t.me/example_video/1',
+  comment: 'видно прогресс'
 });
-
-// Показать в UI:
-// - Mои тренировки (фильтр: studentId = currentStudentId)
-// - Доступные для записи (фильтр: status = 'available')
 ```
 
-## Поток бронирования
+## Validation And Errors
 
-```
-Инструктор создает слот
-    ↓
-   [Available]
-    ↓
-Студент запрашивает
-    ↓
-  [Requested]
-    ↓
-Инструктор подтверждает
-    ↓
-  [Confirmed]
-    ↓
-   Тренировка  ← Возможен перенос
-    ↓         ↖ POST .../reschedule
-  [Reschedule]  (возвращается к Confirmed после подтверждения)
-    ↓
-   Выполнена
-    ↓
-  [Completed]
+Global validation strips unknown fields and rejects non-whitelisted DTO fields.
+
+Common statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `400` | invalid DTO, invalid range, package completed count greater than total |
+| `404` | student, instructor, slot, skill, history not found |
+| `409` | invalid slot status transition, duplicate telegram username, wrong student for slot |
+
+Error shape:
+
+```json
+{
+  "message": "Only requested or reschedule slots can be confirmed",
+  "error": "Conflict",
+  "statusCode": 409
+}
 ```
 
-### Отмена на любом этапе
+## Postman Collections
 
-```
-[Requested] → POST .../cancel → [Available]
-[Confirmed] → POST .../cancel → [Available]
-[Reschedule] → POST .../cancel → [Available]
-```
-
-## Деплой и окружения
-
-### Sviluppo (Development)
-
-```
-Base URL: http://localhost:3000/api
-Port: 3000 (или указан в PORT env)
-Database: PostgreSQL (локально)
+```text
+postman/Moto Mini App Backend.postman_collection.json
+postman/Moto Mini App Backend Write.postman_collection.json
+postman/Moto Mini App Backend Cancel.postman_collection.json
 ```
 
-### Production
+Example:
 
+```bash
+npx newman run "postman/Moto Mini App Backend Write.postman_collection.json" --env-var baseUrl=http://127.0.0.1:3000
 ```
-Base URL: https://api.moto-app.com/api
-Database: PostgreSQL (cloud)
-```
-
-## Дополнительные ресурсы
-
-- API документация: `API.md`
-- TypeScript типы: `FRONTEND_TYPES.ts`
-- Postman коллекции: `postman/`
-- Seed данные: `prisma/seed.ts`
-
-## Поддержка
-
-При возникновении вопросов:
-
-1. Проверь `API.md` для полной документации
-2. Проверь `FRONTEND_TYPES.ts` для типизации
-3. Выполни запрос в Postman и посмотри ответ
-4. Проверь консоль backend'а для ошибок
-
