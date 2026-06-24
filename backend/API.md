@@ -128,7 +128,7 @@ Response `200`:
 
 ### GET /students
 
-Возвращает всех учеников с user, instructor, manual packages и skills.
+Возвращает всех учеников с user, instructor, manual packages, skills и историей тренировок. Счетчики тренировок вычисляются только из `trainingHistory`.
 
 Request body: отсутствует.
 
@@ -164,7 +164,12 @@ Response `200`:
       "updatedAt": "2026-06-01T15:00:00.000Z"
     },
     "packages": [],
-    "skills": []
+    "skills": [],
+    "trainingHistory": [],
+    "history": [],
+    "historyCount": 0,
+    "completedTrainingsCount": 0,
+    "totalTrainings": 0
   }
 ]
 ```
@@ -173,6 +178,7 @@ Notes:
 
 - Ученики сортируются по `createdAt ASC`.
 - Пакеты сортируются по `createdAt DESC`.
+- `history`, `trainingHistory`, `historyCount`, `completedTrainingsCount` и `totalTrainings` используют один источник: таблицу `TrainingHistory`.
 - Пакеты полностью ручные и не пересчитываются из истории тренировок.
 
 ### POST /students
@@ -233,7 +239,7 @@ Prisma transaction:
 
 ### GET /students/:id/profile
 
-Возвращает полный профиль ученика: user, packages, skills, training history, reports, booking slots, videos.
+Возвращает полный профиль ученика: user, packages, skills, training history, reports, booking slots, videos и счетчики истории.
 
 Path params:
 
@@ -295,9 +301,21 @@ Response `200`:
       }
     }
   ],
+  "history": [
+    {
+      "id": "history-id",
+      "studentId": "student-id",
+      "trainedAt": "2026-06-10T10:00:00.000Z"
+    }
+  ],
+  "historyCount": 1,
+  "completedTrainingsCount": 1,
+  "totalTrainings": 1,
   "videos": []
 }
 ```
+
+`history` является совместимым alias массива `trainingHistory`. Все три top-level счетчика равны количеству записей `TrainingHistory`. Поля ручного пакета (`totalSessions`, `usedSessions`, а в package API — `totalTrainings`, `completedTrainings`) остаются независимыми и не изменяются по истории.
 
 ### PATCH /students/:studentId
 

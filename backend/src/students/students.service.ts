@@ -12,8 +12,8 @@ import { UpsertTrainingPackageDto } from './dto/upsert-training-package.dto';
 export class StudentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.student.findMany({
+  async findAll() {
+    const students = await this.prisma.student.findMany({
       orderBy: { createdAt: 'asc' },
       include: {
         instructor: {
@@ -40,9 +40,12 @@ export class StudentsService {
               name: 'asc'
             }
           }
-        }
+        },
+        trainingHistory: this.trainingHistoryInclude()
       }
     });
+
+    return students.map((student) => this.toStudentHistoryResponse(student));
   }
 
   async findProfile(id: string) {
@@ -74,14 +77,7 @@ export class StudentsService {
             }
           }
         },
-        trainingHistory: {
-          orderBy: { trainedAt: 'desc' },
-          include: {
-            report: true,
-            videos: true,
-            bookingSlot: true
-          }
-        },
+        trainingHistory: this.trainingHistoryInclude(),
         videos: {
           orderBy: { createdAt: 'desc' }
         }
@@ -92,7 +88,7 @@ export class StudentsService {
       throw new NotFoundException(`Student ${id} was not found`);
     }
 
-    return student;
+    return this.toStudentHistoryResponse(student);
   }
 
   async create(dto: CreateStudentDto) {
@@ -386,6 +382,29 @@ export class StudentsService {
           }
         }
       }
+    };
+  }
+
+  private trainingHistoryInclude() {
+    return {
+      orderBy: { trainedAt: 'desc' as const },
+      include: {
+        report: true,
+        videos: true,
+        bookingSlot: true
+      }
+    };
+  }
+
+  private toStudentHistoryResponse<T extends { trainingHistory: unknown[] }>(student: T) {
+    const historyCount = student.trainingHistory.length;
+
+    return {
+      ...student,
+      history: student.trainingHistory,
+      historyCount,
+      completedTrainingsCount: historyCount,
+      totalTrainings: historyCount
     };
   }
 

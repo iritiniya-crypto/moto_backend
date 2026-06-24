@@ -239,6 +239,34 @@ async function main() {
     assert.deepEqual(result, { id: studentId });
   }) ? passed++ : failed++;
 
+  await run('StudentsService list and profile use training history for the same counters', async () => {
+    const trainingHistory = [{ id: 'history-1' }, { id: 'history-2' }];
+    const packages = [{ id: 'package-1', usedSessions: 0, totalSessions: 3 }];
+    const student = { id: studentId, trainingHistory, packages };
+    const prisma = {
+      student: {
+        findMany: mockFn().mockResolvedValue([student]),
+        findUnique: mockFn().mockResolvedValue(student)
+      }
+    } as any;
+    const service = new StudentsService(prisma);
+
+    const [listStudent] = await service.findAll();
+    const profileStudent = await service.findProfile(studentId);
+
+    for (const response of [listStudent, profileStudent]) {
+      assert.equal(response.historyCount, 2);
+      assert.equal(response.completedTrainingsCount, 2);
+      assert.equal(response.totalTrainings, 2);
+      assert.deepEqual(response.history, trainingHistory);
+      assert.deepEqual(response.trainingHistory, trainingHistory);
+      assert.deepEqual(response.packages, packages);
+    }
+
+    assert.ok(prisma.student.findMany.calls[0][0].include.trainingHistory);
+    assert.ok(prisma.student.findUnique.calls[0][0].include.trainingHistory);
+  }) ? passed++ : failed++;
+
   await run('StudentsService.update can reassign instructor', async () => {
     const existingStudent = { id: studentId, userId, instructorId };
     const tx = {
@@ -350,5 +378,4 @@ async function main() {
 }
 
 void main();
-
 
