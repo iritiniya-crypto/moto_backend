@@ -184,6 +184,7 @@ export class BookingSlotsService {
     const previousEndsAt = new Date(previousStartsAt.getTime() + previousDurationMinutes * 60_000);
 
     return this.prisma.$transaction(async (tx) => {
+
       const existingPreviousTimeSlot = await tx.bookingSlot.findFirst({
         where: {
           id: { not: slot.id },
@@ -204,6 +205,16 @@ export class BookingSlotsService {
           }
         });
       }
+
+      await tx.bookingSlot.deleteMany({
+        where: {
+          id: { not: slot.id },
+          instructorId: slot.instructorId,
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          status: 'available'
+        }
+      });
 
       return tx.bookingSlot.update({
         where: { id: slotId },

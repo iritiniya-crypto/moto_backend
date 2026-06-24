@@ -11,6 +11,9 @@ export class RescheduleBookingSlotDto {
   @Max(600)
   durationMinutes: number;
 
+  @IsString()
+  targetSlotId: string;
+
   @IsOptional()
   @IsString()
   instructorComment?: string;
