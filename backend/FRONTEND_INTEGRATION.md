@@ -83,6 +83,8 @@ GET /api/booking-slots?studentId=<studentId>
 GET /api/booking-slots?studentId=<studentId>&status=confirmed
 ```
 
+Every booking slot response includes `durationMinutes`. Backend computes it from `endsAt - startsAt`, so a 60-minute slot created by instructor comes back as `durationMinutes: 60` in list, calendar, and write-action responses.
+
 `studentId` filter behavior:
 
 ```sql

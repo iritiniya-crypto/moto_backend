@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { BookingSlotStatus } from '@prisma/client';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { withBookingSlotDuration, withBookingSlotDurations } from './booking-slot-response';
 import { CancelBookingSlotDto } from './dto/cancel-booking-slot.dto';
 import { ConfirmBookingSlotDto } from './dto/confirm-booking-slot.dto';
 import { CreateBookingSlotDto } from './dto/create-booking-slot.dto';
@@ -17,7 +18,7 @@ export class BookingSlotsService {
     private readonly notifications: NotificationsService
   ) {}
 
-  findAll(query: FindBookingSlotsQueryDto = {}) {
+  async findAll(query: FindBookingSlotsQueryDto = {}) {
     const where: any = {};
 
     if (query.studentId) {
@@ -37,7 +38,7 @@ export class BookingSlotsService {
       where.status = query.status;
     }
 
-    return this.prisma.bookingSlot.findMany({
+    const slots = await this.prisma.bookingSlot.findMany({
       where,
       orderBy: { startsAt: 'asc' },
       include: {
@@ -78,6 +79,8 @@ export class BookingSlotsService {
         trainingRecord: true
       }
     });
+
+    return withBookingSlotDurations(slots);
   }
 
   async create(dto: CreateBookingSlotDto) {
@@ -85,7 +88,7 @@ export class BookingSlotsService {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(startsAt.getTime() + dto.durationMinutes * 60_000);
 
-    return this.prisma.bookingSlot.create({
+    const slot = await this.prisma.bookingSlot.create({
       data: {
         startsAt,
         endsAt,
@@ -94,6 +97,8 @@ export class BookingSlotsService {
         instructorId: instructor.id
       }
     });
+
+    return withBookingSlotDuration(slot);
   }
 
   async update(slotId: string, dto: UpdateBookingSlotDto) {
@@ -103,7 +108,7 @@ export class BookingSlotsService {
     const startsAt = dto.startsAt ? new Date(dto.startsAt) : slot.startsAt;
     const endsAt = dto.durationMinutes ? new Date(startsAt.getTime() + dto.durationMinutes * 60_000) : slot.endsAt;
 
-    return this.prisma.bookingSlot.update({
+    const updatedSlot = await this.prisma.bookingSlot.update({
       where: { id: slotId },
       data: {
         startsAt,
@@ -113,6 +118,8 @@ export class BookingSlotsService {
         notes: dto.notes
       }
     });
+
+    return withBookingSlotDuration(updatedSlot);
   }
 
   async remove(slotId: string) {
@@ -143,7 +150,7 @@ export class BookingSlotsService {
       throw new NotFoundException(`Student ${dto.studentId} was not found`);
     }
 
-    return this.prisma.bookingSlot.update({
+    const updatedSlot = await this.prisma.bookingSlot.update({
       where: { id: slotId },
       data: {
         status: 'requested',
@@ -154,6 +161,8 @@ export class BookingSlotsService {
         studentComment: dto.studentComment
       }
     });
+
+    return withBookingSlotDuration(updatedSlot);
   }
 
   async confirm(slotId: string, dto: ConfirmBookingSlotDto) {
@@ -169,10 +178,12 @@ export class BookingSlotsService {
     };
 
     if (slot.status !== BookingSlotStatus.reschedule) {
-      return this.prisma.bookingSlot.update({
+      const updatedSlot = await this.prisma.bookingSlot.update({
         where: { id: slotId },
         data: confirmationData
       });
+
+      return withBookingSlotDuration(updatedSlot);
     }
 
     if (!slot.previousStartsAt || !slot.previousDurationMinutes) {
@@ -183,7 +194,7 @@ export class BookingSlotsService {
     const previousDurationMinutes = slot.previousDurationMinutes;
     const previousEndsAt = new Date(previousStartsAt.getTime() + previousDurationMinutes * 60_000);
 
-    return this.prisma.$transaction(async (tx) => {
+    const updatedSlot = await this.prisma.$transaction(async (tx) => {
 
       const existingPreviousTimeSlot = await tx.bookingSlot.findFirst({
         where: {
@@ -221,6 +232,8 @@ export class BookingSlotsService {
         data: confirmationData
       });
     });
+
+    return withBookingSlotDuration(updatedSlot);
   }
 
   async reschedule(slotId: string, dto: RescheduleBookingSlotDto) {
@@ -231,7 +244,7 @@ export class BookingSlotsService {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(startsAt.getTime() + dto.durationMinutes * 60_000);
 
-    return this.prisma.bookingSlot.update({
+    const updatedSlot = await this.prisma.bookingSlot.update({
       where: { id: slotId },
       data: {
         startsAt,
@@ -242,19 +255,23 @@ export class BookingSlotsService {
         instructorComment: dto.instructorComment
       }
     });
+
+    return withBookingSlotDuration(updatedSlot);
   }
 
   async decline(slotId: string) {
     const slot = await this.findSlotOrThrow(slotId);
     this.assertAnySlotStatus(slot.status, ['requested', 'reschedule'], 'Only requested or reschedule slots can be declined');
 
-    return this.prisma.bookingSlot.update({
+    const updatedSlot = await this.prisma.bookingSlot.update({
       where: { id: slotId },
       data: {
         status: 'cancelled',
         cancelledAt: new Date()
       }
     });
+
+    return withBookingSlotDuration(updatedSlot);
   }
 
   async cancel(slotId: string, _dto: CancelBookingSlotDto = {}) {
@@ -306,7 +323,7 @@ export class BookingSlotsService {
 
     await this.notifications.notifyInstructorTrainingCancelled(notificationPayload);
 
-    return updatedSlot;
+    return withBookingSlotDuration(updatedSlot);
   }
 
   private async findSlotOrThrow(slotId: string) {

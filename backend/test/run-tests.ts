@@ -86,9 +86,19 @@ async function main() {
   }) ? passed++ : failed++;
 
   await run('InstructorCalendarService.findAll loads calendar data', async () => {
-    const prisma = { bookingSlot: { findMany: mockFn().mockResolvedValue([]) } } as any;
+    const prisma = {
+      bookingSlot: {
+        findMany: mockFn().mockResolvedValue([
+          {
+            id: slotId,
+            startsAt: new Date('2026-06-04T09:00:00.000Z'),
+            endsAt: new Date('2026-06-04T10:00:00.000Z')
+          }
+        ])
+      }
+    } as any;
     const service = new InstructorCalendarService(prisma);
-    await service.findAll();
+    const result = await service.findAll();
 
     assert.equal(prisma.bookingSlot.findMany.calls.length, 1);
     const query = prisma.bookingSlot.findMany.calls[0][0];
@@ -97,6 +107,7 @@ async function main() {
     assert.ok(query.include.instructor);
     assert.ok(query.include.calendarEvents);
     assert.ok(query.include.report);
+    assert.equal(result[0].durationMinutes, 60);
   }) ? passed++ : failed++;
 
   await run('InstructorsService.findAll returns ordered instructors with students', async () => {
@@ -305,10 +316,16 @@ async function main() {
     ]);
   }) ? passed++ : failed++;
 
-  await run('BookingSlotsService.create uses first instructor and slots service', async () => {
+  await run('BookingSlotsService.create uses first instructor and returns durationMinutes', async () => {
     const prisma = {
       user: { findFirst: mockFn().mockResolvedValue({ id: instructorId }) },
-      bookingSlot: { create: mockFn().mockResolvedValue({ id: slotId }) }
+      bookingSlot: {
+        create: mockFn().mockResolvedValue({
+          id: slotId,
+          startsAt: new Date('2026-06-04T10:00:00.000Z'),
+          endsAt: new Date('2026-06-04T11:00:00.000Z')
+        })
+      }
     } as any;
     const notifications = { notifyInstructorTrainingCancelled: mockFn().mockResolvedValue({ delivered: false }) } as any;
     const service = new BookingSlotsService(prisma, notifications);
@@ -317,7 +334,7 @@ async function main() {
 
     assert.equal(prisma.user.findFirst.calls.length, 1);
     assert.equal(prisma.bookingSlot.create.calls[0][0].data.instructorId, instructorId);
-    assert.deepEqual(result, { id: slotId });
+    assert.equal(result.durationMinutes, 60);
   }) ? passed++ : failed++;
 
   await run('BookingSlotsService.request assigns student and request metadata', async () => {
@@ -362,13 +379,24 @@ async function main() {
     assert.deepEqual(result, { id: slotId, status: BookingSlotStatus.available });
   }) ? passed++ : failed++;
 
-  await run('BookingSlotsService.findAll forwards status filter', async () => {
-    const prisma = { bookingSlot: { findMany: mockFn().mockResolvedValue([]) } } as any;
+  await run('BookingSlotsService.findAll forwards status filter and returns durationMinutes', async () => {
+    const prisma = {
+      bookingSlot: {
+        findMany: mockFn().mockResolvedValue([
+          {
+            id: slotId,
+            startsAt: new Date('2026-06-04T09:00:00.000Z'),
+            endsAt: new Date('2026-06-04T10:30:00.000Z')
+          }
+        ])
+      }
+    } as any;
     const service = new BookingSlotsService(prisma, { notifyInstructorTrainingCancelled: mockFn() } as any);
 
-    await service.findAll({ status: BookingSlotStatus.available } as any);
+    const result = await service.findAll({ status: BookingSlotStatus.available } as any);
 
     assert.deepEqual(prisma.bookingSlot.findMany.calls[0][0].where, { status: BookingSlotStatus.available });
+    assert.equal(result[0].durationMinutes, 90);
   }) ? passed++ : failed++;
 
   console.log(`\nPassed: ${passed}, Failed: ${failed}`);
@@ -378,4 +406,3 @@ async function main() {
 }
 
 void main();
-

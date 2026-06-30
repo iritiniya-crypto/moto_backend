@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { withBookingSlotDurations } from '../booking/booking-slot-response';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class InstructorCalendarService {
   constructor(private readonly prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.bookingSlot.findMany({
+  async findAll() {
+    const slots = await this.prisma.bookingSlot.findMany({
       orderBy: { startsAt: 'asc' },
       include: {
         student: {
@@ -35,5 +36,7 @@ export class InstructorCalendarService {
         }
       }
     });
+
+    return withBookingSlotDurations(slots);
   }
 }

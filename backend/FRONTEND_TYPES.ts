@@ -85,6 +85,7 @@ export interface BookingSlot {
   id: string;
   startsAt: string;
   endsAt: string;
+  durationMinutes: number;
   status: BookingSlotStatus;
   title: string;
   location?: string;
@@ -467,4 +468,3 @@ export function skillsArrayToString(skills: string[]): string {
 export function skillsStringToArray(skillsStr: string): string[] {
   return skillsStr.split(',').map(s => s.trim());
 }
-

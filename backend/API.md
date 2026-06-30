@@ -556,6 +556,8 @@ Prisma transaction:
 
 Возвращает все слоты с учеником, инструктором, requester, report и trainingRecord.
 
+`durationMinutes` всегда возвращается backend в ответе и вычисляется из `endsAt - startsAt`. Frontend не должен падать в fallback `90 мин`, если слот был создан на `60 мин`.
+
 Query params:
 
 | Name | Type | Required | Description |
@@ -578,6 +580,7 @@ Response `200`:
     "id": "slot-id",
     "startsAt": "2026-06-10T10:00:00.000Z",
     "endsAt": "2026-06-10T11:30:00.000Z",
+    "durationMinutes": 90,
     "status": "confirmed",
     "title": "Свободный слот",
     "location": null,
@@ -611,6 +614,7 @@ Response `200`:
 Notes:
 
 - Слоты сортируются по `startsAt ASC`.
+- `durationMinutes` является частью API-контракта для всех slot response: `GET /booking-slots`, `GET /instructor/calendar`, `POST/PATCH/POST action` endpoints, которые возвращают slot.
 - `available` слот может иметь `student`, `requestedBy`, `report`, `trainingRecord` равными `null`.
 - `reschedule` означает перенос уже подтвержденной записи на другое время.
 - Для `reschedule` backend хранит старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`, чтобы UI мог показать "Было / Стало" после reload.
@@ -639,6 +643,7 @@ Response `201`:
   "id": "slot-id",
   "startsAt": "2026-06-10T10:00:00.000Z",
   "endsAt": "2026-06-10T11:30:00.000Z",
+  "durationMinutes": 90,
   "status": "available",
   "title": "Свободный слот",
   "instructorId": "instructor-id"
@@ -955,6 +960,7 @@ Response `200`:
     "id": "slot-id",
     "startsAt": "2026-06-10T10:00:00.000Z",
     "endsAt": "2026-06-10T11:30:00.000Z",
+    "durationMinutes": 90,
     "status": "confirmed",
     "previousStartsAt": null,
     "previousDurationMinutes": null,
