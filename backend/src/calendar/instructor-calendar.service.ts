@@ -15,7 +15,16 @@ export class InstructorCalendarService {
             id: true,
             name: true,
             telegramUsername: true,
-            level: true
+            level: true,
+            packages: {
+              where: {
+                status: 'active'
+              },
+              orderBy: {
+                createdAt: 'desc'
+              },
+              take: 1
+            }
           }
         },
         instructor: {

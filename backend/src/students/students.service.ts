@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { TrainingPackageStatus } from '@prisma/client';
+import { TrainingPackageStatus, TrainingPackageType } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateManualTrainingHistoryDto } from './dto/create-manual-training-history.dto';
@@ -189,8 +189,12 @@ export class StudentsService {
       orderBy: { createdAt: 'desc' }
     });
 
+    const packageType = this.resolvePackageType(dto, existing?.type);
+    const packageName = this.resolvePackageName(dto, packageType, existing?.name);
     const data = {
-      title: `Пакет ${dto.totalTrainings} тренировок`,
+      type: packageType,
+      name: packageName,
+      title: packageName,
       totalSessions: dto.totalTrainings,
       usedSessions: dto.completedTrainings,
       paymentStatus: dto.paymentStatus,
@@ -334,6 +338,9 @@ export class StudentsService {
     studentId: string;
     totalSessions: number;
     usedSessions: number;
+    type?: TrainingPackageType | string;
+    name?: string;
+    title?: string;
     paymentStatus: string;
     status: string;
     purchasedAt: Date | null;
@@ -344,6 +351,8 @@ export class StudentsService {
     return {
       id: trainingPackage.id,
       studentId: trainingPackage.studentId,
+      type: trainingPackage.type ?? TrainingPackageType.motorcycle,
+      name: trainingPackage.name ?? this.packageTypeName(trainingPackage.type),
       totalTrainings: trainingPackage.totalSessions,
       completedTrainings: trainingPackage.usedSessions,
       paymentStatus: trainingPackage.paymentStatus,
@@ -353,6 +362,50 @@ export class StudentsService {
       createdAt: trainingPackage.createdAt,
       updatedAt: trainingPackage.updatedAt
     };
+  }
+
+  private resolvePackageType(dto: UpsertTrainingPackageDto, currentType?: TrainingPackageType | string | null): TrainingPackageType {
+    if (dto.type) {
+      return dto.type;
+    }
+
+    if (dto.name) {
+      return this.packageTypeByName(dto.name);
+    }
+
+    return this.isPackageType(currentType) ? currentType : TrainingPackageType.motorcycle;
+  }
+
+  private resolvePackageName(dto: UpsertTrainingPackageDto, type: TrainingPackageType, currentName?: string | null) {
+    if (dto.name) {
+      return dto.name;
+    }
+
+    return currentName ?? this.packageTypeName(type);
+  }
+
+  private packageTypeByName(name: string) {
+    const packageTypesByName: Record<string, TrainingPackageType> = {
+      'Скутер': TrainingPackageType.scooter,
+      'Мотоцикл': TrainingPackageType.motorcycle,
+      'Джимхана': TrainingPackageType.gymkhana
+    };
+
+    return packageTypesByName[name] ?? TrainingPackageType.motorcycle;
+  }
+
+  private packageTypeName(type?: TrainingPackageType | string | null) {
+    const packageNames: Record<string, string> = {
+      [TrainingPackageType.scooter]: 'Скутер',
+      [TrainingPackageType.motorcycle]: 'Мотоцикл',
+      [TrainingPackageType.gymkhana]: 'Джимхана'
+    };
+
+    return packageNames[type ?? TrainingPackageType.motorcycle] ?? 'Мотоцикл';
+  }
+
+  private isPackageType(type: unknown): type is TrainingPackageType {
+    return type === TrainingPackageType.scooter || type === TrainingPackageType.motorcycle || type === TrainingPackageType.gymkhana;
   }
 
   private profileInclude() {
@@ -396,11 +449,13 @@ export class StudentsService {
     };
   }
 
-  private toStudentHistoryResponse<T extends { trainingHistory: unknown[] }>(student: T) {
+  private toStudentHistoryResponse<T extends { trainingHistory: unknown[]; packages?: Parameters<StudentsService['toPackageResponse']>[0][] }>(student: T) {
     const historyCount = student.trainingHistory.length;
+    const packages = student.packages?.map((trainingPackage) => this.toPackageResponse(trainingPackage));
 
     return {
       ...student,
+      ...(packages ? { packages, activePackage: packages.find((trainingPackage) => trainingPackage.isActive) ?? null } : {}),
       history: student.trainingHistory,
       historyCount,
       completedTrainingsCount: historyCount,

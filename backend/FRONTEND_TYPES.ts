@@ -13,6 +13,7 @@ export type StudentLevel = 'BEGINNER' | 'BASIC' | 'INTERMEDIATE' | 'ADVANCED';
 export type BookingSlotStatus = 'available' | 'requested' | 'reschedule' | 'confirmed' | 'completed' | 'cancelled';
 export type TrainingPackagePaymentStatus = 'unpaid' | 'paid' | 'partial';
 export type TrainingPackageStatus = 'active' | 'completed' | 'cancelled';
+export type TrainingPackageType = 'scooter' | 'motorcycle' | 'gymkhana';
 export type UserRole = 'STUDENT' | 'INSTRUCTOR';
 
 // ============================================
@@ -61,6 +62,8 @@ export interface StudentProfile extends Student {
 export interface TrainingPackage {
   id: string;
   studentId: string;
+  type: TrainingPackageType;
+  name: 'Скутер' | 'Мотоцикл' | 'Джимхана';
   totalTrainings: number;
   completedTrainings: number;
   paymentStatus: TrainingPackagePaymentStatus;
@@ -109,6 +112,9 @@ export interface BookingSlot {
     name: string;
     telegramUsername: string;
     level: StudentLevel;
+    activePackage?: TrainingPackage | null;
+    package?: TrainingPackage | null;
+    packages?: TrainingPackage[];
   };
   instructor?: {
     id: string;
@@ -249,6 +255,8 @@ export interface CancelBookingSlotRequest {
 }
 
 export interface UpsertTrainingPackageRequest {
+  type?: TrainingPackageType;
+  name?: 'Скутер' | 'Мотоцикл' | 'Джимхана';
   totalTrainings: number;
   completedTrainings: number;
   paymentStatus: TrainingPackagePaymentStatus;

@@ -1,4 +1,4 @@
-import { PrismaClient, StudentLevel } from '@prisma/client';
+import { PrismaClient, StudentLevel, TrainingPackageType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const defaultInstructorId = '11111111-1111-1111-1111-111111111111';
@@ -17,6 +17,8 @@ const skillNames = [
 async function ensurePackage(data: {
   studentId: string;
   title: string;
+  type?: TrainingPackageType;
+  name?: string;
   totalSessions: number;
   usedSessions: number;
   paymentStatus: 'unpaid' | 'paid' | 'partial';
@@ -163,6 +165,8 @@ async function main() {
   await ensurePackage({
     studentId: alex.id,
     title: 'Пакет 4 тренировки',
+    type: TrainingPackageType.motorcycle,
+    name: 'Мотоцикл',
     totalSessions: 4,
     usedSessions: 4,
     paymentStatus: 'paid',
@@ -174,6 +178,8 @@ async function main() {
   await ensurePackage({
     studentId: alex.id,
     title: 'Пакет 3 тренировки',
+    type: TrainingPackageType.motorcycle,
+    name: 'Мотоцикл',
     totalSessions: 3,
     usedSessions: 0,
     paymentStatus: 'paid',
@@ -184,6 +190,8 @@ async function main() {
   await ensurePackage({
     studentId: maria.id,
     title: 'Пробный пакет',
+    type: TrainingPackageType.scooter,
+    name: 'Скутер',
     totalSessions: 2,
     usedSessions: 0,
     paymentStatus: 'partial',

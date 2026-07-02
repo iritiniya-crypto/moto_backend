@@ -40,6 +40,12 @@ enum TrainingPackageStatus {
   cancelled
 }
 
+enum TrainingPackageType {
+  scooter
+  motorcycle
+  gymkhana
+}
+
 model User {
   id               String   @id @default(uuid())
   telegramId       String?  @unique
@@ -215,6 +221,8 @@ model TrainingPackage {
   id            String                       @id @default(uuid())
   studentId     String
   title         String
+  type          TrainingPackageType          @default(motorcycle)
+  name          String                       @default("Мотоцикл")
   totalSessions Int
   usedSessions  Int                          @default(0)
   paymentStatus TrainingPackagePaymentStatus @default(unpaid)

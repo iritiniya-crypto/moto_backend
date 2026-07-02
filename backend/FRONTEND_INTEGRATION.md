@@ -85,6 +85,8 @@ GET /api/booking-slots?studentId=<studentId>&status=confirmed
 
 Every booking slot response includes `durationMinutes`. Backend computes it from `endsAt - startsAt`, so a 60-minute slot created by instructor comes back as `durationMinutes: 60` in list, calendar, and write-action responses.
 
+Requested/reschedule/confirmed slot responses include the student's latest active manual package in `student.activePackage` and `student.package`. Use `student.activePackage.name`, `completedTrainings`, and `totalTrainings` to render strings like `Пакет "Скутер" 1/4` in instructor requests.
+
 `studentId` filter behavior:
 
 ```sql

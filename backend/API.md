@@ -107,6 +107,22 @@ completed
 cancelled
 ```
 
+### TrainingPackageType
+
+```text
+scooter
+motorcycle
+gymkhana
+```
+
+Display names:
+
+| type | name |
+| --- | --- |
+| `scooter` | `Скутер` |
+| `motorcycle` | `Мотоцикл` |
+| `gymkhana` | `Джимхана` |
+
 ## Health
 
 ### GET /health
@@ -366,6 +382,8 @@ Response `200`:
 {
   "id": "package-id",
   "studentId": "student-id",
+  "type": "scooter",
+  "name": "Скутер",
   "totalTrainings": 5,
   "completedTrainings": 1,
   "paymentStatus": "paid",
@@ -389,6 +407,7 @@ Request:
 
 ```json
 {
+  "type": "scooter",
   "totalTrainings": 5,
   "completedTrainings": 1,
   "paymentStatus": "paid",
@@ -404,6 +423,8 @@ Field mapping:
 
 | API field | Prisma field |
 | --- | --- |
+| `type` | `TrainingPackage.type` |
+| `name` | `TrainingPackage.name` |
 | `totalTrainings` | `TrainingPackage.totalSessions` |
 | `completedTrainings` | `TrainingPackage.usedSessions` |
 | `startedAt` | `TrainingPackage.purchasedAt` |
@@ -412,6 +433,8 @@ Field mapping:
 
 Validation:
 
+- `type`: optional `scooter | motorcycle | gymkhana`.
+- `name`: optional persisted display field `Скутер | Мотоцикл | Джимхана`; frontend currently sends Russian values.
 - `totalTrainings`: integer `0-1000`.
 - `completedTrainings`: integer `0-1000`.
 - `completedTrainings <= totalTrainings`.
@@ -603,7 +626,51 @@ Response `200`:
       "id": "student-id",
       "name": "Иван",
       "telegramUsername": "ivan_moto",
-      "level": "BASIC"
+      "level": "BASIC",
+      "activePackage": {
+        "id": "package-id",
+        "studentId": "student-id",
+        "type": "scooter",
+        "name": "Скутер",
+        "totalTrainings": 4,
+        "completedTrainings": 1,
+        "paymentStatus": "paid",
+        "startedAt": "2026-06-02T06:00:00.000Z",
+        "endedAt": null,
+        "isActive": true,
+        "createdAt": "2026-06-02T06:00:00.000Z",
+        "updatedAt": "2026-06-02T06:00:00.000Z"
+      },
+      "package": {
+        "id": "package-id",
+        "studentId": "student-id",
+        "type": "scooter",
+        "name": "Скутер",
+        "totalTrainings": 4,
+        "completedTrainings": 1,
+        "paymentStatus": "paid",
+        "startedAt": "2026-06-02T06:00:00.000Z",
+        "endedAt": null,
+        "isActive": true,
+        "createdAt": "2026-06-02T06:00:00.000Z",
+        "updatedAt": "2026-06-02T06:00:00.000Z"
+      },
+      "packages": [
+        {
+          "id": "package-id",
+          "studentId": "student-id",
+          "type": "scooter",
+          "name": "Скутер",
+          "totalTrainings": 4,
+          "completedTrainings": 1,
+          "paymentStatus": "paid",
+          "startedAt": "2026-06-02T06:00:00.000Z",
+          "endedAt": null,
+          "isActive": true,
+          "createdAt": "2026-06-02T06:00:00.000Z",
+          "updatedAt": "2026-06-02T06:00:00.000Z"
+        }
+      ]
     },
     "report": null,
     "trainingRecord": null
@@ -615,6 +682,7 @@ Notes:
 
 - Слоты сортируются по `startsAt ASC`.
 - `durationMinutes` является частью API-контракта для всех slot response: `GET /booking-slots`, `GET /instructor/calendar`, `POST/PATCH/POST action` endpoints, которые возвращают slot.
+- Для `requested/reschedule/confirmed` слотов `student.activePackage` содержит последний активный ручной пакет ученика. UI блока "Новые запросы на запись" может показать `Пакет "Скутер" 1/4` из `student.activePackage.name`, `completedTrainings`, `totalTrainings`.
 - `available` слот может иметь `student`, `requestedBy`, `report`, `trainingRecord` равными `null`.
 - `reschedule` означает перенос уже подтвержденной записи на другое время.
 - Для `reschedule` backend хранит старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`, чтобы UI мог показать "Было / Стало" после reload.
@@ -968,7 +1036,21 @@ Response `200`:
       "id": "student-id",
       "name": "Иван",
       "telegramUsername": "ivan_moto",
-      "level": "BASIC"
+      "level": "BASIC",
+      "activePackage": {
+        "id": "package-id",
+        "studentId": "student-id",
+        "type": "scooter",
+        "name": "Скутер",
+        "totalTrainings": 4,
+        "completedTrainings": 1,
+        "paymentStatus": "paid",
+        "startedAt": "2026-06-02T06:00:00.000Z",
+        "endedAt": null,
+        "isActive": true,
+        "createdAt": "2026-06-02T06:00:00.000Z",
+        "updatedAt": "2026-06-02T06:00:00.000Z"
+      }
     },
     "instructor": {
       "id": "instructor-id",
@@ -1157,6 +1239,8 @@ Checks:
 
 ```ts
 {
+  type?: TrainingPackageType;
+  name?: 'Скутер' | 'Мотоцикл' | 'Джимхана';
   totalTrainings: number;
   completedTrainings: number;
   paymentStatus: TrainingPackagePaymentStatus;
@@ -1335,6 +1419,8 @@ Checks:
 
 ### UpsertTrainingPackageDto
 
+- `type`: TrainingPackageType enum, optional (scooter | motorcycle | gymkhana)
+- `name`: persisted display package name, optional (Скутер | Мотоцикл | Джимхана)
 - `totalTrainings`: integer, required, min 0, max 1000
 - `completedTrainings`: integer, required, min 0, max 1000
 - `paymentStatus`: TrainingPackagePaymentStatus enum, required (unpaid | paid | partial)

@@ -252,7 +252,20 @@ async function main() {
 
   await run('StudentsService list and profile use training history for the same counters', async () => {
     const trainingHistory = [{ id: 'history-1' }, { id: 'history-2' }];
-    const packages = [{ id: 'package-1', usedSessions: 0, totalSessions: 3 }];
+    const packages = [{
+      id: 'package-1',
+      studentId,
+      type: 'gymkhana',
+      title: 'Джимхана',
+      usedSessions: 0,
+      totalSessions: 3,
+      paymentStatus: 'paid',
+      status: 'active',
+      purchasedAt: null,
+      expiresAt: null,
+      createdAt: new Date('2026-06-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-06-01T09:00:00.000Z')
+    }];
     const student = { id: studentId, trainingHistory, packages };
     const prisma = {
       student: {
@@ -271,7 +284,10 @@ async function main() {
       assert.equal(response.totalTrainings, 2);
       assert.deepEqual(response.history, trainingHistory);
       assert.deepEqual(response.trainingHistory, trainingHistory);
-      assert.deepEqual(response.packages, packages);
+      assert.equal(response.packages[0].type, 'gymkhana');
+      assert.equal(response.packages[0].name, 'Джимхана');
+      assert.equal(response.packages[0].completedTrainings, 0);
+      assert.equal(response.packages[0].totalTrainings, 3);
     }
 
     assert.ok(prisma.student.findMany.calls[0][0].include.trainingHistory);
@@ -297,6 +313,48 @@ async function main() {
 
     assert.equal(prisma.instructor.findUnique.calls.length, 1);
     assert.equal(tx.student.update.calls[0][0].data.instructorId, 'new-instructor');
+  }) ? passed++ : failed++;
+
+  await run('StudentsService.upsertPackage stores package type and returns display name', async () => {
+    const existingPackage = {
+      id: 'package-1',
+      type: 'scooter',
+      name: 'Скутер',
+      title: 'Скутер',
+      totalSessions: 4,
+      usedSessions: 1,
+      paymentStatus: 'paid',
+      status: 'active',
+      purchasedAt: new Date('2026-06-01T09:00:00.000Z'),
+      expiresAt: null,
+      createdAt: new Date('2026-06-01T09:00:00.000Z'),
+      updatedAt: new Date('2026-06-01T09:00:00.000Z'),
+      studentId
+    };
+    const prisma = {
+      student: { findUnique: mockFn().mockResolvedValue({ id: studentId }) },
+      trainingPackage: {
+        findFirst: mockFn().mockResolvedValue(existingPackage),
+        update: mockFn().mockResolvedValue(existingPackage)
+      }
+    } as any;
+    const service = new StudentsService(prisma);
+
+    const result = await service.upsertPackage(studentId, {
+      type: 'scooter',
+      totalTrainings: 4,
+      completedTrainings: 1,
+      paymentStatus: 'paid',
+      isActive: true
+    } as any);
+
+    assert.equal(prisma.trainingPackage.update.calls[0][0].data.type, 'scooter');
+    assert.equal(prisma.trainingPackage.update.calls[0][0].data.name, 'Скутер');
+    assert.equal(prisma.trainingPackage.update.calls[0][0].data.title, 'Скутер');
+    assert.equal(result.type, 'scooter');
+    assert.equal(result.name, 'Скутер');
+    assert.equal(result.completedTrainings, 1);
+    assert.equal(result.totalTrainings, 4);
   }) ? passed++ : failed++;
 
   await run('StudentsService.findSkills maps skill progress', async () => {
@@ -379,14 +437,34 @@ async function main() {
     assert.deepEqual(result, { id: slotId, status: BookingSlotStatus.available });
   }) ? passed++ : failed++;
 
-  await run('BookingSlotsService.findAll forwards status filter and returns durationMinutes', async () => {
+  await run('BookingSlotsService.findAll forwards status filter, duration and student package', async () => {
     const prisma = {
       bookingSlot: {
         findMany: mockFn().mockResolvedValue([
           {
             id: slotId,
             startsAt: new Date('2026-06-04T09:00:00.000Z'),
-            endsAt: new Date('2026-06-04T10:30:00.000Z')
+            endsAt: new Date('2026-06-04T10:30:00.000Z'),
+            student: {
+              id: studentId,
+              name: 'Алексей',
+              packages: [
+                {
+                  id: 'package-1',
+                  studentId,
+                  type: 'gymkhana',
+                  title: 'Джимхана',
+                  totalSessions: 4,
+                  usedSessions: 1,
+                  paymentStatus: 'paid',
+                  status: 'active',
+                  purchasedAt: null,
+                  expiresAt: null,
+                  createdAt: new Date('2026-06-01T09:00:00.000Z'),
+                  updatedAt: new Date('2026-06-01T09:00:00.000Z')
+                }
+              ]
+            }
           }
         ])
       }
@@ -396,7 +474,11 @@ async function main() {
     const result = await service.findAll({ status: BookingSlotStatus.available } as any);
 
     assert.deepEqual(prisma.bookingSlot.findMany.calls[0][0].where, { status: BookingSlotStatus.available });
+    assert.ok(prisma.bookingSlot.findMany.calls[0][0].include.student.select.packages);
     assert.equal(result[0].durationMinutes, 90);
+    assert.equal(result[0].student.activePackage.name, 'Джимхана');
+    assert.equal(result[0].student.activePackage.completedTrainings, 1);
+    assert.equal(result[0].student.activePackage.totalTrainings, 4);
   }) ? passed++ : failed++;
 
   console.log(`\nPassed: ${passed}, Failed: ${failed}`);

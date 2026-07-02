@@ -1,8 +1,16 @@
-import { TrainingPackagePaymentStatus } from '@prisma/client';
+import { TrainingPackagePaymentStatus, TrainingPackageType } from '@prisma/client';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDateString, IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class UpsertTrainingPackageDto {
+  @IsOptional()
+  @IsEnum(TrainingPackageType)
+  type?: TrainingPackageType;
+
+  @IsOptional()
+  @IsIn(['Скутер', 'Мотоцикл', 'Джимхана'])
+  name?: string;
+
   @Type(() => Number)
   @IsInt()
   @Min(0)
