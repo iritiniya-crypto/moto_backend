@@ -315,6 +315,7 @@ export interface CreateTrainingReportResponse {
     id: string;
     level: StudentLevel;
   };
+  trainingPackage: TrainingPackage | null;
 }
 
 // ============================================

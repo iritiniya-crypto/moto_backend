@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { TrainingPackageType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTrainingReportDto } from './dto/create-training-report.dto';
 
@@ -14,6 +15,34 @@ export class TrainingReportsService {
 
       if (!slot) {
         throw new NotFoundException(`Booking slot ${dto.slotId} was not found`);
+      }
+
+      const existingReport = await tx.trainingReport.findUnique({
+        where: { bookingSlotId: slot.id }
+      });
+
+      if (existingReport) {
+        if (existingReport.studentId !== dto.studentId) {
+          throw new ConflictException('Training report belongs to another student');
+        }
+
+        const [history, student, trainingPackage] = await Promise.all([
+          tx.trainingHistory.findUnique({
+            where: { reportId: existingReport.id }
+          }),
+          tx.student.findUnique({
+            where: { id: existingReport.studentId }
+          }),
+          this.findActivePackage(tx, existingReport.studentId)
+        ]);
+
+        return {
+          report: existingReport,
+          trainingHistory: history,
+          slot,
+          student,
+          trainingPackage: this.toPackageResponse(trainingPackage)
+        };
       }
 
       if (slot.status !== 'confirmed') {
@@ -68,12 +97,69 @@ export class TrainingReportsService {
           })
         : student;
 
+      const activePackage = await this.findActivePackage(tx, student.id);
+      const updatedPackage =
+        activePackage && activePackage.usedSessions < activePackage.totalSessions
+          ? await tx.trainingPackage.update({
+              where: { id: activePackage.id },
+              data: {
+                usedSessions: {
+                  increment: 1
+                }
+              }
+            })
+          : activePackage;
+
       return {
         report,
         trainingHistory: history,
         slot: completedSlot,
-        student: updatedStudent
+        student: updatedStudent,
+        trainingPackage: this.toPackageResponse(updatedPackage)
       };
     });
+  }
+
+  private findActivePackage(tx: any, studentId: string) {
+    return tx.trainingPackage.findFirst({
+      where: {
+        studentId,
+        status: 'active'
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+  }
+
+  private toPackageResponse(trainingPackage: any) {
+    if (!trainingPackage) {
+      return null;
+    }
+
+    return {
+      id: trainingPackage.id,
+      studentId: trainingPackage.studentId,
+      type: trainingPackage.type ?? TrainingPackageType.motorcycle,
+      name: trainingPackage.name ?? this.packageTypeName(trainingPackage.type),
+      totalTrainings: trainingPackage.totalSessions,
+      completedTrainings: trainingPackage.usedSessions,
+      paymentStatus: trainingPackage.paymentStatus,
+      startedAt: trainingPackage.purchasedAt,
+      endedAt: trainingPackage.expiresAt,
+      isActive: trainingPackage.status === 'active',
+      createdAt: trainingPackage.createdAt,
+      updatedAt: trainingPackage.updatedAt
+    };
+  }
+
+  private packageTypeName(type?: TrainingPackageType | string | null) {
+    const packageNames: Record<string, string> = {
+      [TrainingPackageType.scooter]: 'Скутер',
+      [TrainingPackageType.motorcycle]: 'Мотоцикл',
+      [TrainingPackageType.gymkhana]: 'Джимхана'
+    };
+
+    return packageNames[type ?? TrainingPackageType.motorcycle] ?? 'Мотоцикл';
   }
 }

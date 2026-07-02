@@ -1071,6 +1071,12 @@ Response `200`:
 
 DTO: `CreateTrainingReportDto`.
 
+Также в той же Prisma transaction обновляет последний активный ручной пакет ученика:
+
+- если пакет есть и `completedTrainings < totalTrainings`, backend увеличивает `completedTrainings` на `+1`;
+- если пакета нет или пакет уже заполнен, счетчик не меняется;
+- повторный вызов с тем же `slotId` идемпотентен: существующий отчет возвращается, пакет повторно не увеличивается.
+
 Request:
 
 ```json
@@ -1113,6 +1119,20 @@ Response `201`:
   "student": {
     "id": "student-id",
     "level": "INTERMEDIATE"
+  },
+  "trainingPackage": {
+    "id": "package-id",
+    "studentId": "student-id",
+    "type": "motorcycle",
+    "name": "Мотоцикл",
+    "totalTrainings": 4,
+    "completedTrainings": 2,
+    "paymentStatus": "paid",
+    "startedAt": "2026-06-02T06:00:00.000Z",
+    "endedAt": null,
+    "isActive": true,
+    "createdAt": "2026-06-02T06:00:00.000Z",
+    "updatedAt": "2026-07-02T10:00:00.000Z"
   }
 }
 ```
@@ -1120,15 +1140,19 @@ Response `201`:
 Prisma transaction:
 
 1. Проверить, что slot существует.
-2. Проверить `slot.status = confirmed`.
-3. Проверить, что student существует.
-4. Проверить, что slot не принадлежит другому student.
-5. Создать `TrainingReport`.
-6. Создать `TrainingHistory`.
-7. Обновить `BookingSlot.status -> completed`.
-8. Обновить `Student.level`, если передан `levelUpdate`.
+2. Проверить, есть ли уже `TrainingReport` для `slotId`; если есть, вернуть существующие данные без повторного увеличения пакета.
+3. Проверить `slot.status = confirmed`.
+4. Проверить, что student существует.
+5. Проверить, что slot не принадлежит другому student.
+6. Создать `TrainingReport`.
+7. Создать `TrainingHistory`.
+8. Обновить `BookingSlot.status -> completed`.
+9. Обновить `Student.level`, если передан `levelUpdate`.
+10. Найти активный `TrainingPackage` ученика и увеличить `usedSessions` на `1`, если `usedSessions < totalSessions`.
 
 Если любой шаг падает, вся операция откатывается.
+
+Важно: `POST /students/:studentId/training-history/manual` не увеличивает пакет автоматически.
 
 ## Manual Training History
 
@@ -1466,6 +1490,8 @@ Current migration history:
 20260603010000_reschedule_target_slot_flow
 20260603020000_revert_reschedule_target_slot_flow
 20260604000000_add_instructor_entity
+20260701000000_add_training_package_type
+20260701010000_add_training_package_name
 ```
 
 Write endpoints foundation:
@@ -1527,6 +1553,19 @@ It adds:
 - `Instructor`
 - `Student.instructorId`
 - relation `Instructor.students`
+
+Training package display migrations:
+
+```text
+prisma/migrations/20260701000000_add_training_package_type/migration.sql
+prisma/migrations/20260701010000_add_training_package_name/migration.sql
+```
+
+They add:
+
+- `TrainingPackageType`
+- `TrainingPackage.type`
+- `TrainingPackage.name`
 
 ## Postman / Newman
 

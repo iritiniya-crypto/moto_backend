@@ -192,10 +192,41 @@ async function main() {
         update: mockFn().mockResolvedValue({ id: studentId, level: StudentLevel.INTERMEDIATE })
       },
       trainingReport: {
+        findUnique: mockFn().mockResolvedValue(null),
         create: mockFn().mockResolvedValue({ id: reportId })
       },
       trainingHistory: {
         create: mockFn().mockResolvedValue({ id: historyId })
+      },
+      trainingPackage: {
+        findFirst: mockFn().mockResolvedValue({
+          id: 'package-1',
+          studentId,
+          type: 'motorcycle',
+          name: 'Мотоцикл',
+          totalSessions: 4,
+          usedSessions: 1,
+          paymentStatus: 'paid',
+          status: 'active',
+          purchasedAt: null,
+          expiresAt: null,
+          createdAt: new Date('2026-06-01T09:00:00.000Z'),
+          updatedAt: new Date('2026-06-01T09:00:00.000Z')
+        }),
+        update: mockFn().mockResolvedValue({
+          id: 'package-1',
+          studentId,
+          type: 'motorcycle',
+          name: 'Мотоцикл',
+          totalSessions: 4,
+          usedSessions: 2,
+          paymentStatus: 'paid',
+          status: 'active',
+          purchasedAt: null,
+          expiresAt: null,
+          createdAt: new Date('2026-06-01T09:00:00.000Z'),
+          updatedAt: new Date('2026-06-01T09:00:00.000Z')
+        })
       }
     } as any;
     const prisma = { $transaction: mockFn(async (cb: any) => cb(tx)) } as any;
@@ -222,6 +253,69 @@ async function main() {
       levelChange: StudentLevel.INTERMEDIATE
     });
     assert.deepEqual(result.slot, { id: slotId, status: 'completed' });
+    assert.equal(tx.trainingPackage.update.calls.length, 1);
+    assert.deepEqual(tx.trainingPackage.update.calls[0][0], {
+      where: { id: 'package-1' },
+      data: {
+        usedSessions: {
+          increment: 1
+        }
+      }
+    });
+    assert.equal(result.trainingPackage.completedTrainings, 2);
+    assert.equal(result.trainingPackage.totalTrainings, 4);
+  }) ? passed++ : failed++;
+
+  await run('TrainingReportsService.create is idempotent for existing report and does not increment package twice', async () => {
+    const existingReport = { id: reportId, bookingSlotId: slotId, studentId };
+    const tx = {
+      bookingSlot: {
+        findUnique: mockFn().mockResolvedValue({ id: slotId, status: 'completed', startsAt: new Date('2026-06-04T09:00:00.000Z'), instructorId: instructorId, studentId })
+      },
+      trainingReport: {
+        findUnique: mockFn().mockResolvedValue(existingReport),
+        create: mockFn()
+      },
+      trainingHistory: {
+        findUnique: mockFn().mockResolvedValue({ id: historyId, reportId })
+      },
+      student: {
+        findUnique: mockFn().mockResolvedValue({ id: studentId })
+      },
+      trainingPackage: {
+        findFirst: mockFn().mockResolvedValue({
+          id: 'package-1',
+          studentId,
+          type: 'scooter',
+          name: 'Скутер',
+          totalSessions: 4,
+          usedSessions: 2,
+          paymentStatus: 'paid',
+          status: 'active',
+          purchasedAt: null,
+          expiresAt: null,
+          createdAt: new Date('2026-06-01T09:00:00.000Z'),
+          updatedAt: new Date('2026-06-01T09:00:00.000Z')
+        }),
+        update: mockFn()
+      }
+    } as any;
+    const prisma = { $transaction: mockFn(async (cb: any) => cb(tx)) } as any;
+    const service = new TrainingReportsService(prisma);
+
+    const result = await service.create({
+      slotId,
+      studentId,
+      trainedSkills: ['Овал'],
+      improved: 'Уже сохранено',
+      nextFocus: 'Без изменений'
+    });
+
+    assert.equal(tx.trainingReport.create.calls.length, 0);
+    assert.equal(tx.trainingPackage.update.calls.length, 0);
+    assert.deepEqual(result.report, existingReport);
+    assert.equal(result.trainingPackage.completedTrainings, 2);
+    assert.equal(result.trainingPackage.name, 'Скутер');
   }) ? passed++ : failed++;
 
   await run('StudentsService.create assigns default instructor when not provided', async () => {
