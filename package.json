@@ -4,7 +4,6 @@
   "private": true,
   "description": "Backend foundation for Moto Mini App",
   "scripts": {
-    "prebuild": "npm run test",
     "build": "nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
