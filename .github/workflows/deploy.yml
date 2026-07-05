@@ -25,6 +25,7 @@ jobs:
             git pull
 
             echo "📦 Build containers"
+            cd /opt/apps/moto_instructor_app
             docker compose build
 
             echo "🧬 Run migrations"
