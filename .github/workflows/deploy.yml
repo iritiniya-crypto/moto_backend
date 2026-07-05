@@ -21,7 +21,7 @@ jobs:
             set -e
 
             echo "🚀 Pull latest code"
-            cd /opt/apps/moto_instructor_app
+            cd /opt/apps/moto_instructor_app/backend
             git pull
 
             echo "📦 Build containers"
