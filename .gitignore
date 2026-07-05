@@ -1,6 +1,7 @@
 node_modules
 dist
 .env
+.env.example
 .DS_Store
 coverage
 moto_mini_app_dump.sql
