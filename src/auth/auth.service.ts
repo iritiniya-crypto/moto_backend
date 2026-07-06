@@ -24,6 +24,18 @@ export interface AuthResponse {
     displayName: string;
     avatar?: string;
   };
+  student: {
+    id: string;
+    userId: string;
+    name: string;
+    level: string;
+    focus?: string;
+    nextTrainingPlan?: string;
+    notes?: string;
+    avatar?: string;
+    createdAt: string;
+    updatedAt: string;
+  };
 }
 
 @Injectable()
@@ -123,6 +135,18 @@ export class AuthService {
         telegramUsername: user.telegramUsername || undefined,
         displayName: user.displayName,
         avatar: student!.avatar || undefined
+      },
+      student: {
+        id: student!.id,
+        userId: student!.userId,
+        name: student!.name,
+        level: student!.level,
+        focus: student!.focus || undefined,
+        nextTrainingPlan: student!.nextTrainingPlan || undefined,
+        notes: student!.notes || undefined,
+        avatar: student!.avatar || undefined,
+        createdAt: student!.createdAt.toISOString(),
+        updatedAt: student!.updatedAt.toISOString()
       }
     };
   }
