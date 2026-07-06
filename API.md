@@ -23,14 +23,51 @@ PORT=3002 npm run start:dev
 
 ## Auth
 
-Production auth пока не реализован. В dev-режиме работает `DevAuthMiddleware`, который добавляет пользователя в `req.user`.
+Telegram Mini App авторизация через JWT токены.
+
+### POST /api/auth/telegram
+
+Авторизует пользователя через Telegram `initData`. При первом входе автоматически создает студента с `uuid`.
+
+**Request:**
 
 ```json
 {
-  "id": "dev-instructor-nikita",
-  "role": "INSTRUCTOR"
+  "initData": "query_id=AAH...&user=%7B%22id%22%3A123456789..."
 }
 ```
+
+`initData` получается в фронтенде через `WebApp.initData` (Telegram Mini App SDK).
+
+**Response:**
+
+```json
+{
+  "token": "eyJhbGc...",
+  "studentId": "550e8400-e29b-41d4-a716-446655440000",
+  "user": {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "telegramId": 123456789,
+    "telegramUsername": "john_doe",
+    "displayName": "John Doe"
+  }
+}
+```
+
+**Usage in Frontend:**
+
+1. При запуске приложения получить `WebApp.initData`
+2. Отправить POST запрос на `/auth/telegram`
+3. Сохранить `token` в localStorage
+4. Отправлять `Authorization: Bearer <token>` в headers всех последующих requests
+
+**Dev Mode:**
+
+Для локального тестирования без Telegram:
+- Установить `DEV_AUTH_ENABLED=true` в .env
+- Токен JWT не требуется, авторизация идет через `DevAuthMiddleware`
+
+Production auth пока не реализован.
 
 ## Validation
 

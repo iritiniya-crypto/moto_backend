@@ -9,7 +9,7 @@
 - Вспомогательные frontend-типы: `FRONTEND_TYPES.ts`.
 - Base URL локально: `http://localhost:3000/api`.
 
-Backend работает с global prefix `/api`, CORS включен, dev auth включен. Telegram auth пока не реализован.
+Backend работает с global prefix `/api`, CORS включен. **Telegram auth реализована и обязательна для использования приложения из Mini App.**
 
 ## Current Backend Shape
 
