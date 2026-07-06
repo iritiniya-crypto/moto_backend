@@ -12,6 +12,7 @@ import { InstructorsModule } from './instructors/instructors.module';
 import { SkillsModule } from './skills/skills.module';
 import { StudentsModule } from './students/students.module';
 import { TrainingHistoryModule } from './training-history/training-history.module';
+import { TelegramModule } from './telegram/telegram.module';
 import { UsersModule } from './users/users.module';
 import { VideosModule } from './videos/videos.module';
 
@@ -31,7 +32,8 @@ import { VideosModule } from './videos/videos.module';
     TrainingHistoryModule,
     VideosModule,
     SkillsModule,
-    CalendarModule
+    CalendarModule,
+    TelegramModule
   ],
   controllers: [AppController]
 })

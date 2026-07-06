@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { TelegramBotService } from '../telegram/telegram-bot.service';
 
 export interface TrainingCancelledNotificationPayload {
   studentName: string;
@@ -11,6 +12,8 @@ export interface TrainingCancelledNotificationPayload {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(@Optional() private readonly telegram?: TelegramBotService) {}
 
   async notifyInstructorTrainingCancelled(payload: TrainingCancelledNotificationPayload) {
     const message = [
@@ -28,7 +31,13 @@ export class NotificationsService {
       message
     });
 
-    return { delivered: false, provider: 'stub', message };
+    if (!this.telegram) {
+      return { delivered: false, provider: 'stub', message };
+    }
+
+    const delivery = await this.telegram.sendInstructorMessage(message);
+
+    return { ...delivery, message };
   }
 
   private formatDate(value: Date) {
