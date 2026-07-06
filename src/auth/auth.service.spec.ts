@@ -25,6 +25,7 @@ describe('AuthService', () => {
     userId: 'test-user-id',
     instructorId: '11111111-1111-1111-1111-111111111111',
     name: 'Test User',
+    avatar: null,
     telegramUsername: 'test_user',
     level: 'BEGINNER',
     focus: null,
@@ -170,6 +171,51 @@ describe('AuthService', () => {
       expect(result.token).toBe('mock-token');
       expect(result.studentId).toBe('test-student-id');
       expect(prismaService.$transaction).toHaveBeenCalled();
+    });
+
+    it('should parse and store avatar from Telegram user', async () => {
+      const avatarUrl = 'https://t.me/avatar.jpg';
+      const initData = `user=${encodeURIComponent(JSON.stringify({ id: 123456789, first_name: 'Test', photo_url: avatarUrl }))}`;
+
+      const studentWithAvatar = { ...mockStudent, avatar: avatarUrl };
+
+      jest.spyOn(prismaService.user, 'findUnique').mockResolvedValueOnce(mockUser);
+      jest.spyOn(prismaService.student, 'findUnique').mockResolvedValueOnce(mockStudent);
+      jest.spyOn(prismaService.student, 'update').mockResolvedValueOnce(studentWithAvatar);
+      jest.spyOn(prismaService.student, 'findUnique').mockResolvedValueOnce(studentWithAvatar);
+      jest.spyOn(jwtService, 'sign').mockReturnValueOnce('mock-token');
+
+      const result = await service.authenticateWithTelegram({ initData });
+
+      expect(prismaService.student.update).toHaveBeenCalledWith({
+        where: { id: 'test-student-id' },
+        data: expect.objectContaining({
+          name: 'Test',
+          avatar: avatarUrl
+        })
+      });
+      expect(result.user.avatar).toBe(avatarUrl);
+    });
+
+    it('should include avatar in response', async () => {
+      const avatarUrl = 'https://t.me/avatar.jpg';
+      const initData = `user=${encodeURIComponent(JSON.stringify({ id: 123456789, first_name: 'Test', photo_url: avatarUrl }))}`;
+
+      const studentWithAvatar = { ...mockStudent, avatar: avatarUrl };
+
+      jest.spyOn(prismaService.user, 'findUnique').mockResolvedValueOnce(mockUser);
+      jest.spyOn(prismaService.student, 'findUnique').mockResolvedValueOnce(studentWithAvatar);
+      jest.spyOn(jwtService, 'sign').mockReturnValueOnce('mock-token');
+
+      const result = await service.authenticateWithTelegram({ initData });
+
+      expect(result.user).toEqual({
+        id: 'test-user-id',
+        telegramId: 123456789,
+        telegramUsername: 'test_user',
+        displayName: 'Test User',
+        avatar: avatarUrl
+      });
     });
   });
 });

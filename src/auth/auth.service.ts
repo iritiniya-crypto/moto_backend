@@ -11,6 +11,7 @@ export interface TelegramUser {
   last_name?: string;
   username?: string;
   language_code?: string;
+  photo_url?: string;
 }
 
 export interface AuthResponse {
@@ -21,6 +22,7 @@ export interface AuthResponse {
     telegramId: number;
     telegramUsername?: string;
     displayName: string;
+    avatar?: string;
   };
 }
 
@@ -59,13 +61,14 @@ export class AuthService {
           userId: user.id,
           instructorId: defaultInstructor.id,
           name: this.formatDisplayName(telegramUser),
+          avatar: telegramUser.photo_url,
           telegramUsername: telegramUser.username,
           level: 'BEGINNER'
         }
       });
     }
 
-    // Get or create student if not exists
+    // Get student profile
     let student = await this.prisma.student.findUnique({
       where: { userId: user.id }
     });
@@ -77,9 +80,29 @@ export class AuthService {
           userId: user.id,
           instructorId: defaultInstructor.id,
           name: this.formatDisplayName(telegramUser),
+          avatar: telegramUser.photo_url,
           telegramUsername: telegramUser.username,
           level: 'BEGINNER'
         }
+      });
+    } else {
+      // Update student name and avatar on each login if they changed
+      const updatedData: { name: string; avatar?: string | null } = {
+        name: this.formatDisplayName(telegramUser)
+      };
+
+      // Only update avatar if it has changed or exists
+      if (telegramUser.photo_url !== student.avatar) {
+        updatedData.avatar = telegramUser.photo_url;
+      }
+
+      await this.prisma.student.update({
+        where: { id: student.id },
+        data: updatedData
+      });
+
+      student = await this.prisma.student.findUnique({
+        where: { id: student.id }
       });
     }
 
@@ -87,18 +110,19 @@ export class AuthService {
     const token = this.jwtService.sign({
       sub: user.id,
       role: user.role,
-      studentId: student.id,
+      studentId: student!.id,
       telegramId: user.telegramId
     });
 
     return {
       token,
-      studentId: student.id,
+      studentId: student!.id,
       user: {
         id: user.id,
         telegramId: parseInt(user.telegramId || '0'),
         telegramUsername: user.telegramUsername || undefined,
-        displayName: user.displayName
+        displayName: user.displayName,
+        avatar: student!.avatar || undefined
       }
     };
   }

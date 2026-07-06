@@ -83,6 +83,7 @@ model Student {
   userId           String       @unique
   instructorId     String       @default("11111111-1111-1111-1111-111111111111")
   name             String
+  avatar           String?
   telegramUsername String?
   level            StudentLevel @default(BEGINNER)
   focus            String?
