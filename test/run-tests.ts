@@ -9,6 +9,7 @@ import {SkillsService} from '../src/skills/skills.service';
 import {StudentsService} from '../src/students/students.service';
 import {TrainingVideosService} from '../src/videos/training-videos.service';
 import {InstructorsService} from '../src/instructors/instructors.service';
+import {TelegramBotService} from '../src/telegram/telegram-bot.service';
 
 function mockFn<TArgs extends any[] = any[], TResult = any>(impl?: (...args: TArgs) => TResult) {
   const calls: TArgs[] = [];
@@ -179,6 +180,41 @@ async function main() {
     assert.equal(result.delivered, false);
     assert.equal(result.provider, 'stub');
     assert.match(result.message, /Алексей отменил тренировку/);
+  }) ? passed++ : failed++;
+
+  await run('TelegramBotService.handleUpdate replies with chat id', async () => {
+    const config = {
+      get: mockFn((key: string, fallback: unknown) => {
+        const values: Record<string, unknown> = {
+          TELEGRAM_ENABLED: true,
+          TELEGRAM_BOT_TOKEN: 'token'
+        };
+
+        return values[key] ?? fallback;
+      })
+    } as any;
+    const sendMessage = mockFn().mockResolvedValue({ delivered: true, provider: 'telegram' });
+    const telegramApi = {
+      getStatus: mockFn().mockReturnValue({ enabled: true, configured: true }),
+      sendMessage
+    } as any;
+    const service = new TelegramBotService(config, telegramApi);
+
+    const result = await service.handleUpdate({
+      update_id: 1,
+      message: {
+        message_id: 10,
+        text: '/chat_id',
+        chat: { id: 123456789, type: 'private' },
+        from: { id: 987654321, is_bot: false, username: 'nikita' }
+      }
+    });
+
+    assert.deepEqual(result, { handled: true });
+    assert.equal(sendMessage.calls.length, 1);
+    assert.equal(sendMessage.calls[0][0], 123456789);
+    assert.match(sendMessage.calls[0][1], /chat_id: 123456789/);
+    assert.match(sendMessage.calls[0][1], /user_id: 987654321/);
   }) ? passed++ : failed++;
 
   await run('TrainingReportsService.create writes report, history and completes slot', async () => {

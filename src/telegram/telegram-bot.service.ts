@@ -1,38 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  TelegramApiResponse,
-  TelegramMessage,
-  TelegramSendMessageOptions,
-  TelegramUpdate
-} from './telegram.types';
+import { TelegramApiService } from './telegram-api.service';
+import { TelegramMessage, TelegramUpdate } from './telegram.types';
 
 @Injectable()
 export class TelegramBotService {
   private readonly logger = new Logger(TelegramBotService.name);
-  private readonly botToken: string;
-  private readonly enabled: boolean;
   private readonly miniAppUrl: string;
   private readonly instructorChatId: string;
 
-  constructor(private readonly config: ConfigService) {
-    this.botToken = this.config.get<string>('TELEGRAM_BOT_TOKEN', '');
-    this.enabled = this.config.get<boolean>('TELEGRAM_ENABLED', false);
+  constructor(
+    private readonly config: ConfigService,
+    private readonly telegramApi: TelegramApiService
+  ) {
     this.miniAppUrl = this.config.get<string>('TELEGRAM_MINI_APP_URL', '');
     this.instructorChatId = this.config.get<string>('TELEGRAM_INSTRUCTOR_CHAT_ID', '');
   }
 
   getStatus() {
     return {
-      enabled: this.enabled,
-      configured: this.isConfigured(),
+      ...this.telegramApi.getStatus(),
       miniAppConfigured: Boolean(this.miniAppUrl),
       instructorChatConfigured: Boolean(this.instructorChatId)
     };
-  }
-
-  isConfigured() {
-    return this.enabled && Boolean(this.botToken);
   }
 
   async handleUpdate(update: TelegramUpdate) {
@@ -47,6 +37,11 @@ export class TelegramBotService {
       return { handled: true };
     }
 
+    if (message.text.startsWith('/chat_id')) {
+      await this.sendChatId(message);
+      return { handled: true };
+    }
+
     return { handled: false };
   }
 
@@ -56,23 +51,7 @@ export class TelegramBotService {
       return { delivered: false, provider: 'telegram', reason: 'missing_instructor_chat_id' };
     }
 
-    return this.sendMessage(this.instructorChatId, text);
-  }
-
-  async sendMessage(chatId: string | number, text: string, options: TelegramSendMessageOptions = {}) {
-    if (!this.isConfigured()) {
-      this.logger.warn('Telegram bot is disabled or TELEGRAM_BOT_TOKEN is not configured');
-      return { delivered: false, provider: 'telegram', reason: 'not_configured' };
-    }
-
-    const response = await this.callTelegramApi<TelegramMessage>('sendMessage', {
-      chat_id: chatId,
-      text,
-      disable_web_page_preview: options.disableWebPagePreview ?? true,
-      reply_markup: options.replyMarkup
-    });
-
-    return { delivered: response.ok, provider: 'telegram', response };
+    return this.telegramApi.sendMessage(this.instructorChatId, text);
   }
 
   private async sendMiniAppEntry(message: TelegramMessage) {
@@ -93,26 +72,17 @@ export class TelegramBotService {
       ? 'Привет! Нажми кнопку ниже, чтобы открыть запись на мототренировки.'
       : 'Привет! Mini App URL пока не настроен на сервере.';
 
-    return this.sendMessage(message.chat.id, text, { replyMarkup });
+    return this.telegramApi.sendMessage(message.chat.id, text, { replyMarkup });
   }
 
-  private async callTelegramApi<T>(method: string, payload: Record<string, unknown>) {
-    const response = await fetch(`https://api.telegram.org/bot${this.botToken}/${method}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+  private async sendChatId(message: TelegramMessage) {
+    const lines = [
+      `chat_id: ${message.chat.id}`,
+      message.chat.type ? `chat_type: ${message.chat.type}` : null,
+      message.from?.id ? `user_id: ${message.from.id}` : null,
+      message.from?.username ? `username: @${message.from.username}` : null
+    ].filter(Boolean);
 
-    const data = (await response.json()) as TelegramApiResponse<T>;
-
-    if (!response.ok || !data.ok) {
-      this.logger.error({
-        method,
-        status: response.status,
-        description: data.description
-      });
-    }
-
-    return data;
+    return this.telegramApi.sendMessage(message.chat.id, lines.join('\n'));
   }
 }
