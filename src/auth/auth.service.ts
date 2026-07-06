@@ -24,18 +24,7 @@ export interface AuthResponse {
     displayName: string;
     avatar?: string;
   };
-  student: {
-    id: string;
-    userId: string;
-    name: string;
-    level: string;
-    focus?: string;
-    nextTrainingPlan?: string;
-    notes?: string;
-    avatar?: string;
-    createdAt: string;
-    updatedAt: string;
-  };
+  student: any; // Полный Student объект как в /students/ endpoint
 }
 
 @Injectable()
@@ -118,6 +107,9 @@ export class AuthService {
       });
     }
 
+    // Reload student with all relations for response
+    const fullStudent = await this.getFullStudent(student!.id);
+
     // Generate JWT token
     const token = this.jwtService.sign({
       sub: user.id,
@@ -134,20 +126,9 @@ export class AuthService {
         telegramId: parseInt(user.telegramId || '0'),
         telegramUsername: user.telegramUsername || undefined,
         displayName: user.displayName,
-        avatar: student!.avatar || undefined
+        avatar: fullStudent.avatar || undefined
       },
-      student: {
-        id: student!.id,
-        userId: student!.userId,
-        name: student!.name,
-        level: student!.level,
-        focus: student!.focus || undefined,
-        nextTrainingPlan: student!.nextTrainingPlan || undefined,
-        notes: student!.notes || undefined,
-        avatar: student!.avatar || undefined,
-        createdAt: student!.createdAt.toISOString(),
-        updatedAt: student!.updatedAt.toISOString()
-      }
+      student: fullStudent
     };
   }
 
@@ -180,6 +161,75 @@ export class AuthService {
   private formatDisplayName(telegramUser: TelegramUser): string {
     const parts = [telegramUser.first_name, telegramUser.last_name].filter(Boolean);
     return parts.join(' ') || `User ${telegramUser.id}`;
+  }
+
+  private async getFullStudent(studentId: string) {
+    const student = await this.prisma.student.findUnique({
+      where: { id: studentId },
+      include: {
+        instructor: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            telegramUsername: true,
+            userId: true,
+            createdAt: true,
+            updatedAt: true
+          }
+        },
+        user: {
+          select: {
+            id: true,
+            telegramId: true,
+            telegramUsername: true,
+            displayName: true,
+            role: true
+          }
+        },
+        packages: {
+          orderBy: { createdAt: 'desc' }
+        },
+        skills: {
+          include: {
+            skill: true
+          },
+          orderBy: {
+            skill: {
+              name: 'asc'
+            }
+          }
+        },
+        trainingHistory: {
+          orderBy: { trainedAt: 'desc' },
+          include: {
+            report: true,
+            videos: true,
+            bookingSlot: true
+          }
+        }
+      }
+    });
+
+    if (!student) {
+      throw new Error('Student not found');
+    }
+
+    // Format response similar to StudentsService
+    const packages = student.packages || [];
+    const historyCount = student.trainingHistory?.length || 0;
+
+    return {
+      ...student,
+      packages: packages,
+      activePackage: packages.find((p: any) => p.isActive) ?? null,
+      history: student.trainingHistory || [],
+      historyCount,
+      completedTrainingsCount: historyCount,
+      totalTrainings: historyCount,
+      createdAt: student.createdAt.toISOString(),
+      updatedAt: student.updatedAt.toISOString()
+    };
   }
 
   private async getDefaultInstructor() {
