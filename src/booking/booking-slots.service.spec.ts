@@ -21,6 +21,10 @@ describe('BookingSlotsService', () => {
   };
 
   const notifications = {
+    notifyInstructorBookingRequested: jest.fn(),
+    notifyInstructorTrainingRescheduled: jest.fn(),
+    notifyInstructorTrainingReminder: jest.fn(),
+    notifyInstructorStudentCreated: jest.fn(),
     notifyInstructorTrainingCancelled: jest.fn()
   };
 
@@ -156,4 +160,3 @@ describe('BookingSlotsService', () => {
     await expect(service.confirm('slot-1', {})).rejects.toBeInstanceOf(ConflictException);
   });
 });
-

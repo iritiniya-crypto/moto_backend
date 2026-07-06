@@ -152,7 +152,13 @@ export class BookingSlotsService {
     this.assertSlotStatus(slot.status, 'available', 'Only available slots can be requested');
 
     const student = await this.prisma.student.findUnique({
-      where: { id: dto.studentId }
+      where: { id: dto.studentId },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        telegramUsername: true
+      }
     });
 
     if (!student) {
@@ -169,6 +175,17 @@ export class BookingSlotsService {
         preference: dto.preference,
         studentComment: dto.studentComment
       }
+    });
+
+    await this.notifications.notifyInstructorBookingRequested({
+      studentName: student.name,
+      telegramUsername: student.telegramUsername,
+      startsAt: updatedSlot.startsAt,
+      durationMinutes: Math.round((updatedSlot.endsAt.getTime() - updatedSlot.startsAt.getTime()) / 60_000),
+      location: updatedSlot.location,
+      preference: dto.preference,
+      studentComment: dto.studentComment,
+      slotId: updatedSlot.id
     });
 
     return withBookingSlotDuration(updatedSlot);
@@ -265,6 +282,28 @@ export class BookingSlotsService {
       }
     });
 
+    const student = slot.studentId
+      ? await this.prisma.student.findUnique({
+          where: { id: slot.studentId },
+          select: {
+            name: true,
+            telegramUsername: true
+          }
+        })
+      : null;
+
+    if (student) {
+      await this.notifications.notifyInstructorTrainingRescheduled({
+        studentName: student.name,
+        telegramUsername: student.telegramUsername,
+        previousStartsAt: slot.startsAt,
+        startsAt: updatedSlot.startsAt,
+        durationMinutes: Math.round((updatedSlot.endsAt.getTime() - updatedSlot.startsAt.getTime()) / 60_000),
+        location: updatedSlot.finalLocation ?? updatedSlot.location,
+        slotId: updatedSlot.id
+      });
+    }
+
     return withBookingSlotDuration(updatedSlot);
   }
 
@@ -291,7 +330,8 @@ export class BookingSlotsService {
           student: {
             select: {
               id: true,
-              name: true
+              name: true,
+              telegramUsername: true
             }
           }
         }
@@ -321,6 +361,7 @@ export class BookingSlotsService {
       return {
         notificationPayload: {
           studentName: slot.student.name,
+          telegramUsername: slot.student.telegramUsername,
           startsAt: slot.startsAt,
           durationMinutes,
           location: slot.finalLocation ?? slot.location,

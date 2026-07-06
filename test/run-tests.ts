@@ -4,6 +4,7 @@ import {BookingSlotStatus, StudentLevel} from '@prisma/client';
 import {BookingSlotsService} from '../src/booking/booking-slots.service';
 import {InstructorCalendarService} from '../src/calendar/instructor-calendar.service';
 import {NotificationsService} from '../src/notifications/notifications.service';
+import {TrainingReminderService} from '../src/notifications/training-reminder.service';
 import {TrainingReportsService} from '../src/reports/training-reports.service';
 import {SkillsService} from '../src/skills/skills.service';
 import {StudentsService} from '../src/students/students.service';
@@ -51,6 +52,16 @@ function mockFn<TArgs extends any[] = any[], TResult = any>(impl?: (...args: TAr
   };
 
   return fn;
+}
+
+function mockNotifications() {
+  return {
+    notifyInstructorBookingRequested: mockFn().mockResolvedValue({ delivered: false }),
+    notifyInstructorStudentCreated: mockFn().mockResolvedValue({ delivered: false }),
+    notifyInstructorTrainingRescheduled: mockFn().mockResolvedValue({ delivered: false }),
+    notifyInstructorTrainingReminder: mockFn().mockResolvedValue({ delivered: false }),
+    notifyInstructorTrainingCancelled: mockFn().mockResolvedValue({ delivered: false })
+  };
 }
 
 async function run(name: string, fn: () => Promise<void> | void) {
@@ -180,6 +191,38 @@ async function main() {
     assert.equal(result.delivered, false);
     assert.equal(result.provider, 'stub');
     assert.match(result.message, /Алексей отменил тренировку/);
+  }) ? passed++ : failed++;
+
+  await run('TrainingReminderService sends one-hour reminders once per slot', async () => {
+    const startsAt = new Date(Date.now() + 60 * 60_000);
+    const prisma = {
+      bookingSlot: {
+        findMany: mockFn().mockResolvedValue([
+          {
+            id: slotId,
+            startsAt,
+            endsAt: new Date(startsAt.getTime() + 90 * 60_000),
+            finalLocation: 'Площадка',
+            location: null,
+            student: {
+              name: 'Алексей',
+              telegramUsername: 'alex_moto'
+            }
+          }
+        ])
+      }
+    } as any;
+    const notifications = mockNotifications();
+    const config = { get: mockFn((_key: string, fallback: unknown) => fallback) } as any;
+    const service = new TrainingReminderService(prisma, notifications as any, config);
+
+    await service.sendUpcomingTrainingReminders();
+    await service.sendUpcomingTrainingReminders();
+
+    assert.equal(notifications.notifyInstructorTrainingReminder.calls.length, 1);
+    assert.equal(notifications.notifyInstructorTrainingReminder.calls[0][0].studentName, 'Алексей');
+    assert.equal(notifications.notifyInstructorTrainingReminder.calls[0][0].telegramUsername, 'alex_moto');
+    assert.equal(notifications.notifyInstructorTrainingReminder.calls[0][0].durationMinutes, 90);
   }) ? passed++ : failed++;
 
   await run('TelegramBotService.handleUpdate replies with chat id', async () => {
@@ -515,7 +558,7 @@ async function main() {
         })
       }
     } as any;
-    const notifications = { notifyInstructorTrainingCancelled: mockFn().mockResolvedValue({ delivered: false }) } as any;
+    const notifications = mockNotifications() as any;
     const service = new BookingSlotsService(prisma, notifications);
 
     const result = await service.create({ startsAt: '2026-06-04T10:00:00.000Z', durationMinutes: 90 });
@@ -529,16 +572,24 @@ async function main() {
     const prisma = {
       bookingSlot: {
         findUnique: mockFn().mockResolvedValue({ id: slotId, status: BookingSlotStatus.available }),
-        update: mockFn().mockResolvedValue({ id: slotId, status: BookingSlotStatus.requested })
+        update: mockFn().mockResolvedValue({
+          id: slotId,
+          status: BookingSlotStatus.requested,
+          startsAt: new Date('2026-06-04T09:00:00.000Z'),
+          endsAt: new Date('2026-06-04T10:30:00.000Z'),
+          location: 'Площадка'
+        })
       },
-      student: { findUnique: mockFn().mockResolvedValue({ id: studentId, userId }) }
+      student: { findUnique: mockFn().mockResolvedValue({ id: studentId, userId, name: 'Алексей', telegramUsername: 'alex_moto' }) }
     } as any;
-    const service = new BookingSlotsService(prisma, { notifyInstructorTrainingCancelled: mockFn() } as any);
+    const notifications = mockNotifications();
+    const service = new BookingSlotsService(prisma, notifications as any);
 
     await service.request(slotId, { studentId, preference: 'утро', studentComment: 'удобно' } as any);
 
     assert.equal(prisma.bookingSlot.update.calls[0][0].data.studentId, studentId);
     assert.equal(prisma.bookingSlot.update.calls[0][0].data.requestedById, userId);
+    assert.equal(notifications.notifyInstructorBookingRequested.calls.length, 1);
   }) ? passed++ : failed++;
 
   await run('BookingSlotsService.cancel frees the slot and notifies instructor', async () => {
@@ -556,7 +607,7 @@ async function main() {
         update: mockFn().mockResolvedValue({ id: slotId, status: BookingSlotStatus.available })
       }
     } as any;
-    const notifications = { notifyInstructorTrainingCancelled: mockFn().mockResolvedValue({ delivered: false }) } as any;
+    const notifications = mockNotifications() as any;
     const prisma = { $transaction: mockFn(async (cb: any) => cb(tx)) } as any;
     const service = new BookingSlotsService(prisma, notifications);
 
@@ -599,7 +650,7 @@ async function main() {
         ])
       }
     } as any;
-    const service = new BookingSlotsService(prisma, { notifyInstructorTrainingCancelled: mockFn() } as any);
+    const service = new BookingSlotsService(prisma, mockNotifications() as any);
 
     const result = await service.findAll({ status: BookingSlotStatus.available } as any);
 

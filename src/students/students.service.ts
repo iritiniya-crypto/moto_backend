@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { TrainingPackageStatus, TrainingPackageType } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateManualTrainingHistoryDto } from './dto/create-manual-training-history.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
@@ -10,7 +11,10 @@ import { UpsertTrainingPackageDto } from './dto/upsert-training-package.dto';
 
 @Injectable()
 export class StudentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications?: NotificationsService
+  ) {}
 
   async findAll() {
     const students = await this.prisma.student.findMany({
@@ -93,7 +97,7 @@ export class StudentsService {
 
   async create(dto: CreateStudentDto) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const student = await this.prisma.$transaction(async (tx) => {
         const instructorId = dto.instructorId ?? (await this.findDefaultInstructorOrThrow()).id;
 
         const user = await tx.user.create({
@@ -117,6 +121,17 @@ export class StudentsService {
           include: this.profileInclude()
         });
       });
+
+      await this.notifications?.notifyInstructorStudentCreated({
+        studentName: student.name,
+        telegramUsername: student.telegramUsername,
+        level: student.level,
+        focus: student.focus,
+        nextTrainingPlan: student.nextTrainingPlan,
+        studentId: student.id
+      });
+
+      return student;
     } catch (error) {
       this.throwIfUniqueConflict(error);
       throw error;
