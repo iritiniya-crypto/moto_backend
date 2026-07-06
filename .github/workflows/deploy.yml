@@ -1,16 +1,15 @@
-name: Deploy to VPS
+name: Deploy Backend
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Debug key length
-        run: echo "${{ secrets.SSH_KEY }}" | wc -c
       - name: Deploy over SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -20,18 +19,19 @@ jobs:
           script: |
             set -e
 
-            echo "🚀 Pull latest code"
+            echo "🚀 Pull backend"
             cd /opt/apps/moto_instructor_app/backend
-            git pull
+            git fetch origin
+            git reset --hard origin/main
 
-            echo "📦 Build containers"
+            echo "📦 Build backend image"
             cd /opt/apps/moto_instructor_app
-            docker compose build
+            docker compose build backend
 
-            echo "🧬 Run migrations"
+            echo "🔄 Restart backend"
+            docker compose up -d --force-recreate backend
+
+            echo "🧬 Run Prisma migrations"
             docker compose run --rm backend npx prisma migrate deploy
 
-            echo "🔄 Restart services"
-            docker compose up -d
-
-            echo "✅ Deploy finished"
+            echo "✅ Backend deployed"
