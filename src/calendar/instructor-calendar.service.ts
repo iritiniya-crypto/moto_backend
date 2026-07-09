@@ -8,6 +8,11 @@ export class InstructorCalendarService {
 
   async findAll() {
     const slots = await this.prisma.bookingSlot.findMany({
+      where: {
+        startsAt: {
+          gte: this.getRollingMonthStart()
+        }
+      },
       orderBy: { startsAt: 'asc' },
       include: {
         student: {
@@ -47,5 +52,11 @@ export class InstructorCalendarService {
     });
 
     return withBookingSlotDurations(slots);
+  }
+
+  private getRollingMonthStart() {
+    const start = new Date();
+    start.setMonth(start.getMonth() - 1);
+    return start;
   }
 }

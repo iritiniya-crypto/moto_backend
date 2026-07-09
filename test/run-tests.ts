@@ -114,6 +114,7 @@ async function main() {
 
     assert.equal(prisma.bookingSlot.findMany.calls.length, 1);
     const query = prisma.bookingSlot.findMany.calls[0][0];
+    assert.ok(query.where.startsAt.gte instanceof Date);
     assert.deepEqual(query.orderBy, { startsAt: 'asc' });
     assert.ok(query.include.student);
     assert.ok(query.include.instructor);
@@ -439,11 +440,12 @@ async function main() {
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
       updatedAt: new Date('2026-06-01T09:00:00.000Z')
     }];
-    const student = { id: studentId, trainingHistory, packages };
+    const listStudentData = { id: studentId, _count: { trainingHistory: 2 }, packages };
+    const profileStudentData = { id: studentId, trainingHistory, packages, slots: [{ id: 'slot-1', status: 'confirmed' }] };
     const prisma = {
       student: {
-        findMany: mockFn().mockResolvedValue([student]),
-        findUnique: mockFn().mockResolvedValue(student)
+        findMany: mockFn().mockResolvedValue([listStudentData]),
+        findUnique: mockFn().mockResolvedValue(profileStudentData)
       }
     } as any;
     const service = new StudentsService(prisma);
@@ -452,19 +454,20 @@ async function main() {
     const profileStudent = await service.findProfile(studentId);
 
     for (const response of [listStudent, profileStudent]) {
-      assert.equal(response.historyCount, 2);
       assert.equal(response.completedTrainingsCount, 2);
-      assert.equal(response.totalTrainings, 2);
-      assert.deepEqual(response.history, trainingHistory);
-      assert.deepEqual(response.trainingHistory, trainingHistory);
       assert.equal(response.packages[0].type, 'gymkhana');
       assert.equal(response.packages[0].name, 'Джимхана');
       assert.equal(response.packages[0].completedTrainings, 0);
       assert.equal(response.packages[0].totalTrainings, 3);
     }
 
-    assert.ok(prisma.student.findMany.calls[0][0].include.trainingHistory);
+    assert.equal(listStudent.trainingHistory, undefined);
+    assert.deepEqual(profileStudent.trainingHistory, trainingHistory);
+    assert.deepEqual(profileStudent.nextTraining, { id: 'slot-1', status: 'confirmed' });
+    assert.equal(prisma.student.findMany.calls[0][0].include.trainingHistory, undefined);
+    assert.ok(prisma.student.findMany.calls[0][0].include._count);
     assert.ok(prisma.student.findUnique.calls[0][0].include.trainingHistory);
+    assert.ok(prisma.student.findUnique.calls[0][0].include.slots);
   }) ? passed++ : failed++;
 
   await run('StudentsService.update can reassign instructor', async () => {
@@ -654,7 +657,10 @@ async function main() {
 
     const result = await service.findAll({ status: BookingSlotStatus.available } as any);
 
-    assert.deepEqual(prisma.bookingSlot.findMany.calls[0][0].where, { status: BookingSlotStatus.available });
+    const where = prisma.bookingSlot.findMany.calls[0][0].where;
+    assert.equal(where.AND.length, 2);
+    assert.ok(where.AND[0].startsAt.gte instanceof Date);
+    assert.deepEqual(where.AND[1], { status: BookingSlotStatus.available });
     assert.ok(prisma.bookingSlot.findMany.calls[0][0].include.student.select.packages);
     assert.equal(result[0].durationMinutes, 90);
     assert.equal(result[0].student.activePackage.name, 'Джимхана');

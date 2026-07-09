@@ -19,24 +19,32 @@ export class BookingSlotsService {
   ) {}
 
   async findAll(query: FindBookingSlotsQueryDto = {}) {
-    const where: any = {};
+    const filters: any[] = [
+      {
+        startsAt: {
+          gte: this.getRollingMonthStart()
+        }
+      }
+    ];
 
     if (query.studentId) {
       const studentFilter = {
         OR: [
           { studentId: query.studentId },
-          { status: 'available' }
+          { status: BookingSlotStatus.available }
         ]
       };
 
+      filters.push(studentFilter);
+
       if (query.status) {
-        where.AND = [studentFilter, { status: query.status }];
-      } else {
-        where.OR = studentFilter.OR;
+        filters.push({ status: query.status });
       }
     } else if (query.status) {
-      where.status = query.status;
+      filters.push({ status: query.status });
     }
+
+    const where = filters.length === 1 ? filters[0] : { AND: filters };
 
     const slots = await this.prisma.bookingSlot.findMany({
       where,
@@ -90,6 +98,12 @@ export class BookingSlotsService {
     });
 
     return withBookingSlotDurations(slots);
+  }
+
+  private getRollingMonthStart() {
+    const start = new Date();
+    start.setMonth(start.getMonth() - 1);
+    return start;
   }
 
   async create(dto: CreateBookingSlotDto) {

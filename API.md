@@ -7,6 +7,8 @@
 - Зафиксирован текущий same-slot `reschedule` flow с `previousStartsAt` и `previousDurationMinutes`.
 - Добавлен student cancel flow `POST /booking-slots/:slotId/cancel` с notification hook.
 - Добавлен параметр `studentId` в `GET /booking-slots` для сценариев frontend.
+- `GET /booking-slots` по умолчанию возвращает только актуальные слоты: от текущей даты минус один месяц и дальше.
+- `GET /instructor/calendar` использует такое же актуальное окно: все статусы, но только от текущей даты минус один месяц и дальше.
 - Все DTO задокументированы с типами полей и validation rules.
 
 ## Base URL
@@ -181,7 +183,7 @@ Response `200`:
 
 ### GET /students
 
-Возвращает всех учеников с user, instructor, manual packages, skills и историей тренировок. Счетчики тренировок вычисляются только из `trainingHistory`.
+Возвращает легкий список учеников для профиля инструктора: user, instructor, manual packages и счетчик завершенных тренировок. Полная история, навыки и предстоящие тренировки подгружаются через `GET /students/:id/profile` при открытии карточки ученика.
 
 Request body: отсутствует.
 
@@ -217,12 +219,7 @@ Response `200`:
       "updatedAt": "2026-06-01T15:00:00.000Z"
     },
     "packages": [],
-    "skills": [],
-    "trainingHistory": [],
-    "history": [],
-    "historyCount": 0,
-    "completedTrainingsCount": 0,
-    "totalTrainings": 0
+    "completedTrainingsCount": 0
   }
 ]
 ```
@@ -231,8 +228,9 @@ Notes:
 
 - Ученики сортируются по `createdAt ASC`.
 - Пакеты сортируются по `createdAt DESC`.
-- `history`, `trainingHistory`, `historyCount`, `completedTrainingsCount` и `totalTrainings` используют один источник: таблицу `TrainingHistory`.
+- `completedTrainingsCount` считается через `_count.trainingHistory`.
 - Пакеты полностью ручные и не пересчитываются из истории тренировок.
+- `trainingHistory`, `skills`, `upcomingTrainings` и `nextTraining` намеренно не входят в список, чтобы не грузить тяжелые данные при входе в профиль инструктора.
 
 ### POST /students
 
@@ -354,21 +352,30 @@ Response `200`:
       }
     }
   ],
-  "history": [
+  "upcomingTrainings": [
     {
-      "id": "history-id",
-      "studentId": "student-id",
-      "trainedAt": "2026-06-10T10:00:00.000Z"
+      "id": "slot-id",
+      "startsAt": "2026-07-10T09:00:00.000Z",
+      "endsAt": "2026-07-10T10:30:00.000Z",
+      "status": "confirmed",
+      "title": "Площадка",
+      "location": "Учебная площадка"
     }
   ],
-  "historyCount": 1,
+  "nextTraining": {
+    "id": "slot-id",
+    "startsAt": "2026-07-10T09:00:00.000Z",
+    "endsAt": "2026-07-10T10:30:00.000Z",
+    "status": "confirmed",
+    "title": "Площадка",
+    "location": "Учебная площадка"
+  },
   "completedTrainingsCount": 1,
-  "totalTrainings": 1,
   "videos": []
 }
 ```
 
-`history` является совместимым alias массива `trainingHistory`. Все три top-level счетчика равны количеству записей `TrainingHistory`. Поля ручного пакета (`totalSessions`, `usedSessions`, а в package API — `totalTrainings`, `completedTrainings`) остаются независимыми и не изменяются по истории.
+`completedTrainingsCount` равен количеству записей `TrainingHistory`. `upcomingTrainings` содержит активные записи ученика со статусами `requested | reschedule | confirmed`, отсортированные по `startsAt ASC`; `nextTraining` равен первой записи из этого массива или `null`. Поля ручного пакета (`totalSessions`, `usedSessions`, а в package API — `totalTrainings`, `completedTrainings`) остаются независимыми и не изменяются по истории.
 
 ### PATCH /students/:studentId
 
@@ -614,7 +621,9 @@ Prisma transaction:
 
 ### GET /booking-slots
 
-Возвращает все слоты с учеником, инструктором, requester, report и trainingRecord.
+Возвращает рабочий список слотов с учеником, инструктором, requester, report и trainingRecord.
+
+По умолчанию endpoint ограничивает выдачу скользящим актуальным окном: `startsAt >= текущий момент минус один месяц`. Это не календарный месяц и не архив всей базы. Будущие слоты остаются в ответе, старые слоты старше месяца скрываются из обычной выдачи.
 
 `durationMinutes` всегда возвращается backend в ответе и вычисляется из `endsAt - startsAt`. Frontend не должен падать в fallback `90 мин`, если слот был создан на `60 мин`.
 
@@ -627,10 +636,10 @@ Query params:
 
 Examples:
 
-- `GET /booking-slots` - все слоты
-- `GET /booking-slots?status=confirmed` - только подтвержденные слоты
-- `GET /booking-slots?studentId=<uuid>` - слоты студента + доступные для записи
-- `GET /booking-slots?studentId=<uuid>&status=confirmed` - подтвержденные слоты этого студента
+- `GET /booking-slots` - все актуальные слоты за скользящий месяц назад и будущее
+- `GET /booking-slots?status=confirmed` - только актуальные подтвержденные слоты
+- `GET /booking-slots?studentId=<uuid>` - актуальные слоты студента + доступные для записи
+- `GET /booking-slots?studentId=<uuid>&status=confirmed` - актуальные подтвержденные слоты этого студента
 
 Response `200`:
 
@@ -1054,6 +1063,8 @@ Payload:
 ### GET /instructor/calendar
 
 Возвращает внутренний календарь инструктора на основе `BookingSlot`.
+
+По умолчанию endpoint возвращает все статусы слотов, но только в актуальном скользящем окне: `startsAt >= текущий момент минус один месяц`. Это не календарный месяц; будущие слоты остаются в ответе, старые слоты старше месяца скрываются из обычного календаря.
 
 Это не Google Calendar. `calendarEvents` зарезервирован для будущей интеграции.
 

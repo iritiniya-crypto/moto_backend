@@ -13,10 +13,14 @@ describe('InstructorCalendarService', () => {
 
     expect(prisma.bookingSlot.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
+        where: {
+          startsAt: {
+            gte: expect.any(Date)
+          }
+        },
         orderBy: { startsAt: 'asc' },
         include: expect.any(Object)
       })
     );
   });
 });
-

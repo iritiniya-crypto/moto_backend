@@ -42,7 +42,16 @@ describe('BookingSlotsService', () => {
     expect(prisma.bookingSlot.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
-          OR: [{ studentId: 'student-1' }, { status: 'available' }]
+          AND: [
+            {
+              startsAt: {
+                gte: expect.any(Date)
+              }
+            },
+            {
+              OR: [{ studentId: 'student-1' }, { status: BookingSlotStatus.available }]
+            }
+          ]
         }
       })
     );

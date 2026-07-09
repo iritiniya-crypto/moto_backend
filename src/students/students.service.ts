@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { TrainingPackageStatus, TrainingPackageType } from '@prisma/client';
+import { BookingSlotStatus, TrainingPackageStatus, TrainingPackageType } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -35,21 +35,15 @@ export class StudentsService {
         packages: {
           orderBy: { createdAt: 'desc' }
         },
-        skills: {
-          include: {
-            skill: true
-          },
-          orderBy: {
-            skill: {
-              name: 'asc'
-            }
+        _count: {
+          select: {
+            trainingHistory: true
           }
-        },
-        trainingHistory: this.trainingHistoryInclude()
+        }
       }
     });
 
-    return students.map((student) => this.toStudentHistoryResponse(student));
+    return students.map((student) => this.toStudentListResponse(student));
   }
 
   async findProfile(id: string) {
@@ -82,6 +76,7 @@ export class StudentsService {
           }
         },
         trainingHistory: this.trainingHistoryInclude(),
+        slots: this.upcomingTrainingsInclude(),
         videos: {
           orderBy: { createdAt: 'desc' }
         }
@@ -464,17 +459,54 @@ export class StudentsService {
     };
   }
 
+  private upcomingTrainingsInclude() {
+    return {
+      where: {
+        status: {
+          in: [BookingSlotStatus.requested, BookingSlotStatus.reschedule, BookingSlotStatus.confirmed]
+        }
+      },
+      orderBy: { startsAt: 'asc' as const },
+      include: {
+        student: {
+          select: {
+            id: true,
+            name: true,
+            telegramUsername: true,
+            level: true
+          }
+        },
+        report: {
+          select: {
+            id: true,
+            createdAt: true
+          }
+        }
+      }
+    };
+  }
+
   private toStudentHistoryResponse<T extends { trainingHistory: unknown[]; packages?: Parameters<StudentsService['toPackageResponse']>[0][] }>(student: T) {
     const historyCount = student.trainingHistory.length;
+    const packages = student.packages?.map((trainingPackage) => this.toPackageResponse(trainingPackage));
+    const upcomingTrainings = 'slots' in student && Array.isArray(student.slots) ? student.slots : [];
+
+    return {
+      ...student,
+      ...(packages ? { packages, activePackage: packages.find((trainingPackage) => trainingPackage.isActive) ?? null } : {}),
+      upcomingTrainings,
+      nextTraining: upcomingTrainings[0] ?? null,
+      completedTrainingsCount: historyCount
+    };
+  }
+
+  private toStudentListResponse<T extends { _count?: { trainingHistory?: number }; packages?: Parameters<StudentsService['toPackageResponse']>[0][] }>(student: T) {
     const packages = student.packages?.map((trainingPackage) => this.toPackageResponse(trainingPackage));
 
     return {
       ...student,
       ...(packages ? { packages, activePackage: packages.find((trainingPackage) => trainingPackage.isActive) ?? null } : {}),
-      history: student.trainingHistory,
-      historyCount,
-      completedTrainingsCount: historyCount,
-      totalTrainings: historyCount
+      completedTrainingsCount: student._count?.trainingHistory ?? 0
     };
   }
 

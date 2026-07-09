@@ -223,10 +223,7 @@ export class AuthService {
       ...student,
       packages: packages,
       activePackage: packages.find((p: any) => p.isActive) ?? null,
-      history: student.trainingHistory || [],
-      historyCount,
       completedTrainingsCount: historyCount,
-      totalTrainings: historyCount,
       createdAt: student.createdAt.toISOString(),
       updatedAt: student.updatedAt.toISOString()
     };
