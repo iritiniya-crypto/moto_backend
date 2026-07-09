@@ -45,6 +45,10 @@ export class InstructorCalendarService {
         report: {
           select: {
             id: true,
+            trainedOn: true,
+            successes: true,
+            focusNext: true,
+            levelChange: true,
             createdAt: true
           }
         }
