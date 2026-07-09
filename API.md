@@ -4,7 +4,7 @@
 
 Последние обновления:
 - Добавлена dedicated `Instructor` entity и endpoints `GET /instructors`, `GET /instructors/:id/profile`.
-- Зафиксирован текущий same-slot `reschedule` flow с `previousStartsAt` и `previousDurationMinutes`.
+- Зафиксирован target-slot `reschedule` flow: старый confirmed slot освобождается после подтверждения, выбранный target slot становится confirmed.
 - Добавлен student cancel flow `POST /booking-slots/:slotId/cancel` с notification hook.
 - Добавлен параметр `studentId` в `GET /booking-slots` для сценариев frontend.
 - `GET /booking-slots` по умолчанию возвращает только актуальные слоты: от текущей даты минус один месяц и дальше.
@@ -850,7 +850,7 @@ Checks:
 
 Переводит слот `requested -> confirmed` или `reschedule -> confirmed`.
 
-Для `requested` это обычный update одного slot. Для `reschedule` backend использует Prisma transaction: подтверждает тот же rescheduled slot и освобождает предыдущее время, если отдельного слота на старое время еще нет. Frontend при этом продолжает работать с тем же `slotId` как с перенесенной тренировкой.
+Для `requested` это обычный update одного slot. Для `reschedule` backend использует Prisma transaction: освобождает старый confirmed slot и подтверждает выбранный target slot, который до подтверждения был в статусе `reschedule`.
 
 DTO: `ConfirmBookingSlotDto`.
 
@@ -884,17 +884,20 @@ Checks:
 
 Prisma transaction for `reschedule` confirmation:
 
-1. Проверить, есть ли отдельный слот на `previousStartsAt` / previous duration.
-2. Если такого слота нет, создать `available` slot на старое время.
-3. Обновить текущий rescheduled slot до `confirmed`.
+1. Найти старый `confirmed` slot по `previousStartsAt`, `previousDurationMinutes`, `studentId` и `instructorId`.
+2. Освободить старый slot: `status = available`, `studentId = null`, очистить поля записи.
+3. Обновить target `reschedule` slot до `confirmed`.
+4. Вернуть оба слота в response, чтобы frontend сразу обновил календарь.
+
+Если перенос был создан старой same-slot логикой и отдельного старого confirmed slot уже нет, backend создает `available` slot на `previousStartsAt` / `previousDurationMinutes` и затем подтверждает текущий `reschedule` slot. Это compatibility fallback для уже существующих заявок на перенос.
 
 ### POST /booking-slots/:slotId/reschedule
 
-Переводит уже подтвержденную запись `confirmed -> reschedule` на том же `slotId`.
+Создает запрос на перенос уже подтвержденной тренировки на выбранный свободный target slot.
 
-Backend сохраняет старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`, а новое время записывает в `startsAt/endsAt`. Эти поля persist в PostgreSQL и возвращаются после reload.
+`slotId` в path - это текущий confirmed slot ученика. `targetSlotId` в body - выбранный свободный slot на новое время.
 
-Важно: endpoint не создает новый booking slot. Он меняет время у той же записи и сохраняет старое время в previous-полях.
+Backend не переписывает время старого confirmed slot. Вместо этого он переводит выбранный target slot в `reschedule`, переносит на него `studentId`, сохраняет старое confirmed-время в `previousStartsAt` и `previousDurationMinutes`. Старый slot остается `confirmed` до подтверждения инструктором.
 
 DTO: `RescheduleBookingSlotDto`.
 
@@ -902,9 +905,10 @@ Request:
 
 ```json
 {
+  "targetSlotId": "target-slot-id",
   "startsAt": "2026-05-18T06:00:00.000Z",
   "durationMinutes": 90,
-  "instructorComment": "Переносим из-за погоды"
+  "studentComment": "Удобнее утром"
 }
 ```
 
@@ -912,14 +916,14 @@ Response `201`:
 
 ```json
 {
-  "id": "slot-id",
+  "id": "target-slot-id",
   "previousStartsAt": "2026-05-17T14:30:00.000Z",
   "previousDurationMinutes": 90,
   "startsAt": "2026-05-18T06:00:00.000Z",
   "endsAt": "2026-05-18T07:30:00.000Z",
   "status": "reschedule",
   "studentId": "student-id",
-  "instructorComment": "Переносим из-за погоды"
+  "studentComment": "Удобнее утром"
 }
 ```
 
@@ -927,6 +931,8 @@ Checks:
 
 - slot exists.
 - slot status is `confirmed`.
+- `targetSlotId` exists.
+- target slot status is `available`.
 - `durationMinutes`: integer `15-600`.
 
 Frontend example:
@@ -2005,7 +2011,7 @@ GET /api/booking-slots?studentId=550e8400-e29b-41d4-a716-446655440000
 
 ### Перенос тренировки
 
-**POST /booking-slots/:slotId/reschedule** - инструктор переносит confirmed тренировку
+**POST /booking-slots/:slotId/reschedule** - ученик запрашивает перенос confirmed тренировки на выбранный свободный target slot
 
 Поля `previousStartsAt` и `previousDurationMinutes` сохраняют старое время для отображения "Было / Стало".
 

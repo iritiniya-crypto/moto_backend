@@ -234,62 +234,72 @@ export class BookingSlotsService {
     const previousDurationMinutes = slot.previousDurationMinutes;
     const previousEndsAt = new Date(previousStartsAt.getTime() + previousDurationMinutes * 60_000);
 
-    const updatedSlot = await this.prisma.$transaction(async (tx) => {
-
-      const existingPreviousTimeSlot = await tx.bookingSlot.findFirst({
+    const { confirmedSlot, releasedSlot } = await this.prisma.$transaction(async (tx) => {
+      const previousSlot = await tx.bookingSlot.findFirst({
         where: {
           id: { not: slot.id },
           instructorId: slot.instructorId,
+          studentId: slot.studentId,
           startsAt: previousStartsAt,
-          endsAt: previousEndsAt
+          endsAt: previousEndsAt,
+          status: BookingSlotStatus.confirmed
         }
       });
 
-      if (!existingPreviousTimeSlot) {
-        await tx.bookingSlot.create({
-          data: {
-            startsAt: previousStartsAt,
-            endsAt: previousEndsAt,
-            status: BookingSlotStatus.available,
-            title: 'Свободный слот',
-            instructorId: slot.instructorId
-          }
-        });
-      }
+      const releasedSlot = previousSlot
+        ? await tx.bookingSlot.update({
+            where: { id: previousSlot.id },
+            data: this.availableSlotData()
+          })
+        : await tx.bookingSlot.create({
+            data: {
+              startsAt: previousStartsAt,
+              endsAt: previousEndsAt,
+              status: BookingSlotStatus.available,
+              title: 'Свободный слот',
+              instructorId: slot.instructorId
+            }
+          });
 
-      await tx.bookingSlot.deleteMany({
-        where: {
-          id: { not: slot.id },
-          instructorId: slot.instructorId,
-          startsAt: slot.startsAt,
-          endsAt: slot.endsAt,
-          status: 'available'
-        }
-      });
-
-      return tx.bookingSlot.update({
+      const confirmedSlot = await tx.bookingSlot.update({
         where: { id: slotId },
-        data: confirmationData
+        data: {
+          ...confirmationData,
+          previousStartsAt: null,
+          previousDurationMinutes: null
+        }
       });
+
+      return { confirmedSlot, releasedSlot };
     });
 
-    return withBookingSlotDuration(updatedSlot);
+    return withBookingSlotDurations([releasedSlot, confirmedSlot]);
   }
 
   async reschedule(slotId: string, dto: RescheduleBookingSlotDto) {
     const slot = await this.findSlotOrThrow(slotId);
     this.assertSlotStatus(slot.status, 'confirmed', 'Only confirmed slots can be rescheduled');
 
+    if (!slot.studentId) {
+      throw new ConflictException('Confirmed slot has no student to reschedule');
+    }
+
+    const targetSlot = await this.findSlotOrThrow(dto.targetSlotId);
+    this.assertSlotStatus(targetSlot.status, 'available', 'Only available target slots can be requested for reschedule');
+
     const previousDurationMinutes = Math.round((slot.endsAt.getTime() - slot.startsAt.getTime()) / 60_000);
-    const startsAt = new Date(dto.startsAt);
-    const endsAt = new Date(startsAt.getTime() + dto.durationMinutes * 60_000);
 
     const updatedSlot = await this.prisma.bookingSlot.update({
-      where: { id: slotId },
+      where: { id: targetSlot.id },
       data: {
-        startsAt,
-        endsAt,
         status: BookingSlotStatus.reschedule,
+        studentId: slot.studentId,
+        requestedById: slot.requestedById,
+        requestedAt: new Date(),
+        preference: targetSlot.location ?? targetSlot.title,
+        studentComment: dto.studentComment,
+        finalLocation: null,
+        finalLocationUrl: null,
         previousStartsAt: slot.startsAt,
         previousDurationMinutes,
         instructorComment: dto.instructorComment

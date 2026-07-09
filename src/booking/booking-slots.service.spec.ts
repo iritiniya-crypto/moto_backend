@@ -98,13 +98,67 @@ describe('BookingSlotsService', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it('confirm for reschedule creates available slot for previous time', async () => {
+  it('confirm for reschedule releases previous confirmed slot and confirms target slot', async () => {
+    const previousStartsAt = new Date('2026-06-01T10:00:00.000Z');
+    const previousEndsAt = new Date('2026-06-01T11:30:00.000Z');
+
+    prisma.bookingSlot.findUnique.mockResolvedValue({
+      id: 'target-slot',
+      status: BookingSlotStatus.reschedule,
+      instructorId: 'instructor-1',
+      studentId: 'student-1',
+      previousStartsAt,
+      previousDurationMinutes: 90
+    });
+
+    const tx = {
+      bookingSlot: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'previous-slot' }),
+        update: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'previous-slot', status: BookingSlotStatus.available })
+          .mockResolvedValueOnce({ id: 'target-slot', status: BookingSlotStatus.confirmed })
+      }
+    };
+
+    prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
+
+    await service.confirm('target-slot', {});
+
+    expect(tx.bookingSlot.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: { not: 'target-slot' },
+        instructorId: 'instructor-1',
+        studentId: 'student-1',
+        startsAt: previousStartsAt,
+        endsAt: previousEndsAt,
+        status: BookingSlotStatus.confirmed
+      }
+    });
+    expect(tx.bookingSlot.update).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: { id: 'previous-slot' },
+        data: expect.objectContaining({ status: BookingSlotStatus.available })
+      })
+    );
+    expect(tx.bookingSlot.update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: { id: 'target-slot' },
+        data: expect.objectContaining({ status: BookingSlotStatus.confirmed })
+      })
+    );
+  });
+
+  it('confirm for legacy reschedule creates available previous slot when confirmed source is missing', async () => {
     const previousStartsAt = new Date('2026-06-01T10:00:00.000Z');
 
     prisma.bookingSlot.findUnique.mockResolvedValue({
       id: 'slot-1',
       status: BookingSlotStatus.reschedule,
       instructorId: 'instructor-1',
+      studentId: 'student-1',
       previousStartsAt,
       previousDurationMinutes: 90
     });
@@ -112,8 +166,8 @@ describe('BookingSlotsService', () => {
     const tx = {
       bookingSlot: {
         findFirst: jest.fn().mockResolvedValue(null),
-        create: jest.fn().mockResolvedValue({ id: 'freed-slot' }),
-        update: jest.fn().mockResolvedValue({ id: 'slot-1', status: 'confirmed' })
+        create: jest.fn().mockResolvedValue({ id: 'legacy-available-slot', status: BookingSlotStatus.available }),
+        update: jest.fn().mockResolvedValue({ id: 'slot-1', status: BookingSlotStatus.confirmed })
       }
     };
 
@@ -130,32 +184,12 @@ describe('BookingSlotsService', () => {
         })
       })
     );
-    expect(tx.bookingSlot.update).toHaveBeenCalled();
-  });
-
-  it('confirm for reschedule skips create when previous slot exists', async () => {
-    prisma.bookingSlot.findUnique.mockResolvedValue({
-      id: 'slot-1',
-      status: BookingSlotStatus.reschedule,
-      instructorId: 'instructor-1',
-      previousStartsAt: new Date('2026-06-01T10:00:00.000Z'),
-      previousDurationMinutes: 90
-    });
-
-    const tx = {
-      bookingSlot: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'existing-slot' }),
-        create: jest.fn(),
-        update: jest.fn().mockResolvedValue({ id: 'slot-1', status: 'confirmed' })
-      }
-    };
-
-    prisma.$transaction.mockImplementation(async (cb: any) => cb(tx));
-
-    await service.confirm('slot-1', {});
-
-    expect(tx.bookingSlot.create).not.toHaveBeenCalled();
-    expect(tx.bookingSlot.update).toHaveBeenCalled();
+    expect(tx.bookingSlot.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'slot-1' },
+        data: expect.objectContaining({ status: BookingSlotStatus.confirmed })
+      })
+    );
   });
 
   it('confirm for reschedule without previous data throws conflict', async () => {

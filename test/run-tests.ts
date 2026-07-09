@@ -621,6 +621,154 @@ async function main() {
     assert.deepEqual(result, { id: slotId, status: BookingSlotStatus.available });
   }) ? passed++ : failed++;
 
+  await run('BookingSlotsService.reschedule marks target slot as reschedule', async () => {
+    const targetSlotId = randomUUID();
+    const confirmedSlot = {
+      id: slotId,
+      status: BookingSlotStatus.confirmed,
+      startsAt: new Date('2026-06-04T09:00:00.000Z'),
+      endsAt: new Date('2026-06-04T10:30:00.000Z'),
+      studentId,
+      requestedById: userId
+    };
+    const targetSlot = {
+      id: targetSlotId,
+      status: BookingSlotStatus.available,
+      startsAt: new Date('2026-06-05T09:00:00.000Z'),
+      endsAt: new Date('2026-06-05T10:30:00.000Z'),
+      title: 'Свободный слот'
+    };
+    const prisma = {
+      bookingSlot: {
+        findUnique: mockFn(({ where }: any) => (where.id === slotId ? confirmedSlot : targetSlot)),
+        update: mockFn().mockResolvedValue({
+          ...targetSlot,
+          status: BookingSlotStatus.reschedule,
+          studentId,
+          previousStartsAt: confirmedSlot.startsAt,
+          previousDurationMinutes: 90
+        })
+      },
+      student: { findUnique: mockFn().mockResolvedValue({ name: 'Алексей', telegramUsername: 'alex_moto' }) }
+    } as any;
+    const notifications = mockNotifications() as any;
+    const service = new BookingSlotsService(prisma, notifications);
+
+    const result = await service.reschedule(slotId, {
+      targetSlotId,
+      startsAt: targetSlot.startsAt.toISOString(),
+      durationMinutes: 90,
+      studentComment: 'удобнее утром'
+    });
+
+    assert.equal(prisma.bookingSlot.update.calls[0][0].where.id, targetSlotId);
+    assert.equal(prisma.bookingSlot.update.calls[0][0].data.status, BookingSlotStatus.reschedule);
+    assert.equal(prisma.bookingSlot.update.calls[0][0].data.studentId, studentId);
+    assert.equal(prisma.bookingSlot.update.calls[0][0].data.previousStartsAt, confirmedSlot.startsAt);
+    assert.equal(prisma.bookingSlot.update.calls[0][0].data.studentComment, 'удобнее утром');
+    assert.equal(result.status, BookingSlotStatus.reschedule);
+    assert.equal(notifications.notifyInstructorTrainingRescheduled.calls.length, 1);
+  }) ? passed++ : failed++;
+
+  await run('BookingSlotsService.confirm reschedule releases old slot and confirms target', async () => {
+    const targetSlotId = randomUUID();
+    const previousStartsAt = new Date('2026-06-04T09:00:00.000Z');
+    const previousEndsAt = new Date('2026-06-04T10:30:00.000Z');
+    const targetSlot = {
+      id: targetSlotId,
+      status: BookingSlotStatus.reschedule,
+      startsAt: new Date('2026-06-05T09:00:00.000Z'),
+      endsAt: new Date('2026-06-05T10:30:00.000Z'),
+      instructorId,
+      studentId,
+      previousStartsAt,
+      previousDurationMinutes: 90
+    };
+    const previousSlot = {
+      id: slotId,
+      status: BookingSlotStatus.confirmed,
+      startsAt: previousStartsAt,
+      endsAt: previousEndsAt,
+      instructorId,
+      studentId
+    };
+    const updateResults = [
+      { ...previousSlot, status: BookingSlotStatus.available, studentId: null },
+      { ...targetSlot, status: BookingSlotStatus.confirmed }
+    ];
+    const tx = {
+      bookingSlot: {
+        findFirst: mockFn().mockResolvedValue(previousSlot),
+        update: mockFn(async () => updateResults.shift())
+      }
+    } as any;
+    const prisma = {
+      bookingSlot: {
+        findUnique: mockFn().mockResolvedValue(targetSlot)
+      },
+      $transaction: mockFn(async (cb: any) => cb(tx))
+    } as any;
+    const service = new BookingSlotsService(prisma, mockNotifications() as any);
+
+    const result = await service.confirm(targetSlotId, { finalLocation: 'Площадка' });
+
+    assert.equal(tx.bookingSlot.findFirst.calls[0][0].where.id.not, targetSlotId);
+    assert.equal(tx.bookingSlot.findFirst.calls[0][0].where.status, BookingSlotStatus.confirmed);
+    assert.equal(tx.bookingSlot.update.calls[0][0].where.id, slotId);
+    assert.equal(tx.bookingSlot.update.calls[0][0].data.status, BookingSlotStatus.available);
+    assert.equal(tx.bookingSlot.update.calls[1][0].where.id, targetSlotId);
+    assert.equal(tx.bookingSlot.update.calls[1][0].data.status, BookingSlotStatus.confirmed);
+    assert.equal(Array.isArray(result), true);
+    assert.equal(result[0].status, BookingSlotStatus.available);
+    assert.equal(result[1].status, BookingSlotStatus.confirmed);
+  }) ? passed++ : failed++;
+
+  await run('BookingSlotsService.confirm legacy reschedule recreates previous available slot', async () => {
+    const targetSlotId = randomUUID();
+    const previousStartsAt = new Date('2026-06-04T09:00:00.000Z');
+    const targetSlot = {
+      id: targetSlotId,
+      status: BookingSlotStatus.reschedule,
+      startsAt: new Date('2026-06-05T09:00:00.000Z'),
+      endsAt: new Date('2026-06-05T10:30:00.000Z'),
+      instructorId,
+      studentId,
+      previousStartsAt,
+      previousDurationMinutes: 90
+    };
+    const tx = {
+      bookingSlot: {
+        findFirst: mockFn().mockResolvedValue(null),
+        create: mockFn().mockResolvedValue({
+          id: slotId,
+          status: BookingSlotStatus.available,
+          startsAt: previousStartsAt,
+          endsAt: new Date('2026-06-04T10:30:00.000Z')
+        }),
+        update: mockFn().mockResolvedValue({
+          ...targetSlot,
+          status: BookingSlotStatus.confirmed
+        })
+      }
+    } as any;
+    const prisma = {
+      bookingSlot: {
+        findUnique: mockFn().mockResolvedValue(targetSlot)
+      },
+      $transaction: mockFn(async (cb: any) => cb(tx))
+    } as any;
+    const service = new BookingSlotsService(prisma, mockNotifications() as any);
+
+    const result = await service.confirm(targetSlotId, { finalLocation: 'Площадка' });
+
+    assert.equal(tx.bookingSlot.create.calls[0][0].data.status, BookingSlotStatus.available);
+    assert.equal(tx.bookingSlot.create.calls[0][0].data.startsAt, previousStartsAt);
+    assert.equal(tx.bookingSlot.update.calls[0][0].where.id, targetSlotId);
+    assert.equal(Array.isArray(result), true);
+    assert.equal(result[0].status, BookingSlotStatus.available);
+    assert.equal(result[1].status, BookingSlotStatus.confirmed);
+  }) ? passed++ : failed++;
+
   await run('BookingSlotsService.findAll forwards status filter, duration and student package', async () => {
     const prisma = {
       bookingSlot: {

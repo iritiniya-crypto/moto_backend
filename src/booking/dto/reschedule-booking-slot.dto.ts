@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class RescheduleBookingSlotDto {
   @IsDateString()
@@ -11,10 +11,14 @@ export class RescheduleBookingSlotDto {
   @Max(600)
   durationMinutes: number;
 
-  @IsString()
+  @IsUUID()
   targetSlotId: string;
 
   @IsOptional()
   @IsString()
   instructorComment?: string;
+
+  @IsOptional()
+  @IsString()
+  studentComment?: string;
 }
