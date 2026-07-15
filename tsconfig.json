@@ -16,7 +16,7 @@
     "strictPropertyInitialization": false,
     "noImplicitAny": true,
     "types": [
-      "cypress", "vitest/globals", "jest", "node"
+      "jest"
     ]
   }
 }
