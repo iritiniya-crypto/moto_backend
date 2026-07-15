@@ -242,7 +242,7 @@ export class BookingSlotsService {
         location: confirmationData.finalLocation,
         slotId: slot.id,
         studentId: student?.id ?? null,
-        studentTelegramChatId: student?.telegramUsername ?? null,
+        studentTelegramChatId: student?.userId ?? null,
         approveType: "requestApproved"
       })
 
@@ -304,7 +304,7 @@ export class BookingSlotsService {
       location: confirmedSlot.finalLocation,
       slotId: confirmedSlot.id,
       studentId: student?.id ?? null,
-      studentTelegramChatId: student?.telegramUsername ?? null,
+      studentTelegramChatId: student?.userId ?? null,
       approveType: "rescheduleApproved"
     })
 
