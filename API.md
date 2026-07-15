@@ -1053,15 +1053,98 @@ Payload:
 }
 ```
 
-Текущая реализация stub/log. Позже Telegram Bot API можно подключить внутри `NotificationsService`, не переписывая cancel business logic.
+Текущая реализация создает durable item в таблице `Notification`. Если Telegram настроен через env, `NotificationsService` делает одну попытку отправки и обновляет delivery status.
 
-Будущий текст уведомления:
+Текст уведомления:
 
 ```text
 Алексей Иванов отменил тренировку.
 Дата: 11 июня
 Время: 17:30
 Слот автоматически возвращен в календарь и снова доступен для записи.
+```
+
+## Notifications
+
+Уведомления сначала сохраняются в PostgreSQL как журнал событий. Если `TELEGRAM_ENABLED=true`, `TELEGRAM_BOT_TOKEN` настроен и у получателя есть chat id, backend отправляет сообщение через Telegram Bot API и обновляет `status`.
+
+Если Telegram выключен, не настроен или у получателя нет chat id, запись остается в базе как `channel=internal`, `status=pending`.
+
+Delivery statuses:
+
+- `pending` - событие сохранено, Telegram-отправка не выполнялась.
+- `sent` - Telegram принял сообщение.
+- `failed` - была попытка Telegram-отправки, но она завершилась ошибкой.
+- `read` - зарезервировано, публичного API для чтения/прочтения сейчас нет.
+
+Retry:
+
+- `NotificationRetryService` периодически берет `channel=telegram` + `status=failed|pending` и повторяет отправку.
+- При успехе статус становится `sent`.
+- При повторной ошибке статус остается/становится `failed`.
+- Retry не вызывается из booking/reschedule/cancel flow и не влияет на переходы статусов слота.
+
+Env:
+
+```env
+TELEGRAM_NOTIFICATION_RETRY_ENABLED=true
+TELEGRAM_NOTIFICATION_RETRY_INTERVAL_MS=300000
+TELEGRAM_NOTIFICATION_RETRY_BATCH_SIZE=20
+```
+
+Создаются события:
+
+- `instructor.student_created` - новый ученик создан вручную или через Telegram auth/bot flow.
+- `instructor.booking_requested` - ученик отправил заявку на тренировку.
+- `instructor.training_rescheduled` - ученик запросил перенос.
+- `instructor.training_cancelled` - ученик отменил тренировку.
+- `instructor.training_reminder_1h` - инструктору напоминание за час.
+- `student.training_reminder_1h` - ученику напоминание за час.
+
+Публичных `/notifications` endpoints сейчас нет. Таблица `Notification` используется как технический журнал доставки и диагностики, а не как API для интерфейса.
+
+Пример сохраненного события:
+
+```json
+{
+  "id": "notification-id",
+  "type": "instructor.booking_requested",
+  "recipientRole": "instructor",
+  "recipientTelegramChatId": null,
+  "studentId": "student-id",
+  "bookingSlotId": "slot-id",
+  "title": "Новая заявка на тренировку",
+  "message": "Новая заявка на тренировку\nУченик: Алексей (@alex_moto)\nДата: 18 июля\nВремя: 09:00\nМесто: Площадка Запад",
+  "payload": {
+    "studentName": "Алексей",
+    "telegramUsername": "alex_moto",
+    "slotId": "slot-id"
+  },
+  "channel": "telegram",
+  "status": "sent",
+  "sentAt": "2026-07-15T09:00:01.000Z",
+  "readAt": null,
+  "createdAt": "2026-07-15T09:00:00.000Z",
+  "updatedAt": "2026-07-15T09:00:00.000Z"
+}
+```
+
+Prisma model:
+
+```text
+Notification
+- type
+- recipientRole: instructor | student
+- recipientTelegramChatId
+- studentId
+- bookingSlotId
+- title
+- message
+- payload Json
+- channel: internal | telegram
+- status: pending | sent | failed | read
+- sentAt
+- readAt
 ```
 
 ## Instructor Calendar
@@ -1555,6 +1638,8 @@ Current migration history:
 20260604000000_add_instructor_entity
 20260701000000_add_training_package_type
 20260701010000_add_training_package_name
+20260706160937_add_student_avatar
+20260715000000_add_notifications_feed
 ```
 
 Write endpoints foundation:

@@ -46,6 +46,23 @@ enum TrainingPackageType {
   gymkhana
 }
 
+enum NotificationRecipientRole {
+  instructor
+  student
+}
+
+enum NotificationChannel {
+  internal
+  telegram
+}
+
+enum NotificationStatus {
+  pending
+  sent
+  failed
+  read
+}
+
 model User {
   id               String   @id @default(uuid())
   telegramId       String?  @unique
@@ -61,6 +78,28 @@ model User {
   requestedSlots     BookingSlot[]       @relation("RequestedBy")
   createdReports     TrainingReport[]    @relation("ReportAuthor")
   calendarSyncEvents CalendarSyncEvent[]
+}
+
+model Notification {
+  id                      String                    @id @default(uuid())
+  type                    String
+  recipientRole           NotificationRecipientRole
+  recipientTelegramChatId String?
+  studentId               String?
+  bookingSlotId           String?
+  title                   String
+  message                 String
+  payload                 Json?
+  channel                 NotificationChannel       @default(internal)
+  status                  NotificationStatus        @default(pending)
+  sentAt                  DateTime?
+  readAt                  DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+
+  @@index([recipientRole, createdAt])
+  @@index([status, createdAt])
+  @@index([type, bookingSlotId, recipientRole])
 }
 
 model Instructor {

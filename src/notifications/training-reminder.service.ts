@@ -53,8 +53,14 @@ export class TrainingReminderService implements OnModuleInit, OnModuleDestroy {
       include: {
         student: {
           select: {
+            id: true,
             name: true,
-            telegramUsername: true
+            telegramUsername: true,
+            user: {
+              select: {
+                telegramId: true
+              }
+            }
           }
         }
       },
@@ -74,7 +80,19 @@ export class TrainingReminderService implements OnModuleInit, OnModuleDestroy {
         startsAt: slot.startsAt,
         durationMinutes: Math.round((slot.endsAt.getTime() - slot.startsAt.getTime()) / 60_000),
         location: slot.finalLocation ?? slot.location,
-        slotId: slot.id
+        slotId: slot.id,
+        studentId: slot.student.id
+      });
+
+      await this.notifications.notifyStudentTrainingReminder({
+        studentName: slot.student.name,
+        telegramUsername: slot.student.telegramUsername,
+        startsAt: slot.startsAt,
+        durationMinutes: Math.round((slot.endsAt.getTime() - slot.startsAt.getTime()) / 60_000),
+        location: slot.finalLocation ?? slot.location,
+        slotId: slot.id,
+        studentId: slot.student.id,
+        studentTelegramChatId: slot.student.user?.telegramId ?? null
       });
     }
   }

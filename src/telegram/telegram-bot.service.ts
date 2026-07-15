@@ -54,6 +54,10 @@ export class TelegramBotService {
     return this.telegramApi.sendMessage(this.instructorChatId, text);
   }
 
+  async sendMessageToChat(chatId: string | number, text: string) {
+    return this.telegramApi.sendMessage(chatId, text);
+  }
+
   private async sendMiniAppEntry(message: TelegramMessage) {
     const replyMarkup = this.miniAppUrl
       ? {

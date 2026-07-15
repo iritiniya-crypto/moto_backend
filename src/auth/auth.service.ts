@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramAuthDto } from './dto/telegram-auth.dto';
 
@@ -32,7 +33,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
-    private readonly config: ConfigService
+    private readonly config: ConfigService,
+    private readonly notifications: NotificationsService
   ) {}
 
   async authenticateWithTelegram(dto: TelegramAuthDto): Promise<AuthResponse> {
@@ -43,6 +45,7 @@ export class AuthService {
     let user = await this.prisma.user.findUnique({
       where: { telegramId: telegramUser.id.toString() }
     });
+    let createdStudentId: string | null = null;
 
     if (!user) {
       // Create new user and student on first login
@@ -57,7 +60,7 @@ export class AuthService {
 
       // Create corresponding student
       const defaultInstructor = await this.getDefaultInstructor();
-      await this.prisma.student.create({
+      const createdStudent = await this.prisma.student.create({
         data: {
           userId: user.id,
           instructorId: defaultInstructor.id,
@@ -67,6 +70,7 @@ export class AuthService {
           level: 'BEGINNER'
         }
       });
+      createdStudentId = createdStudent.id;
     }
 
     // Get student profile
@@ -86,6 +90,7 @@ export class AuthService {
           level: 'BEGINNER'
         }
       });
+      createdStudentId = student.id;
     } else {
       // Update student name and avatar on each login if they changed
       const updatedData: { name: string; avatar?: string | null } = {
@@ -109,6 +114,17 @@ export class AuthService {
 
     // Reload student with all relations for response
     const fullStudent = await this.getFullStudent(student!.id);
+
+    if (createdStudentId) {
+      await this.notifications.notifyInstructorStudentCreated({
+        studentName: fullStudent.name,
+        telegramUsername: fullStudent.telegramUsername,
+        level: fullStudent.level,
+        focus: fullStudent.focus,
+        nextTrainingPlan: fullStudent.nextTrainingPlan,
+        studentId: fullStudent.id
+      });
+    }
 
     // Generate JWT token
     const token = this.jwtService.sign({

@@ -4,6 +4,7 @@ import {BookingSlotStatus, StudentLevel} from '@prisma/client';
 import {BookingSlotsService} from '../src/booking/booking-slots.service';
 import {InstructorCalendarService} from '../src/calendar/instructor-calendar.service';
 import {NotificationsService} from '../src/notifications/notifications.service';
+import {NotificationRetryService} from '../src/notifications/notification-retry.service';
 import {TrainingReminderService} from '../src/notifications/training-reminder.service';
 import {TrainingReportsService} from '../src/reports/training-reports.service';
 import {SkillsService} from '../src/skills/skills.service';
@@ -60,6 +61,7 @@ function mockNotifications() {
     notifyInstructorStudentCreated: mockFn().mockResolvedValue({ delivered: false }),
     notifyInstructorTrainingRescheduled: mockFn().mockResolvedValue({ delivered: false }),
     notifyInstructorTrainingReminder: mockFn().mockResolvedValue({ delivered: false }),
+    notifyStudentTrainingReminder: mockFn().mockResolvedValue({ delivered: false }),
     notifyInstructorTrainingCancelled: mockFn().mockResolvedValue({ delivered: false })
   };
 }
@@ -190,8 +192,133 @@ async function main() {
 
     assert.equal(log.calls.length, 1);
     assert.equal(result.delivered, false);
-    assert.equal(result.provider, 'stub');
+    assert.equal(result.provider, 'database');
     assert.match(result.message, /Алексей отменил тренировку/);
+  }) ? passed++ : failed++;
+
+  await run('NotificationsService creates durable instructor notification item', async () => {
+    const notificationId = randomUUID();
+    const prisma = {
+      notification: {
+        create: mockFn().mockResolvedValue({
+          id: notificationId,
+          status: 'pending',
+          recipientRole: 'instructor'
+        })
+      }
+    } as any;
+    const service = new NotificationsService(prisma);
+
+    const result = await service.notifyInstructorBookingRequested({
+      studentName: 'Алексей',
+      telegramUsername: 'alex_moto',
+      startsAt: new Date('2026-06-01T10:00:00.000Z'),
+      durationMinutes: 90,
+      location: 'Площадка',
+      slotId,
+      studentId
+    });
+
+    assert.equal(prisma.notification.create.calls[0][0].data.type, 'instructor.booking_requested');
+    assert.equal(prisma.notification.create.calls[0][0].data.studentId, studentId);
+    assert.equal(result.notification.id, notificationId);
+  }) ? passed++ : failed++;
+
+  await run('NotificationsService sends configured Telegram notification and updates status', async () => {
+    const notificationId = randomUUID();
+    const prisma = {
+      notification: {
+        create: mockFn().mockResolvedValue({
+          id: notificationId,
+          status: 'pending',
+          channel: 'telegram',
+          recipientRole: 'instructor'
+        }),
+        update: mockFn().mockResolvedValue({
+          id: notificationId,
+          status: 'sent',
+          channel: 'telegram',
+          sentAt: new Date()
+        })
+      }
+    } as any;
+    const telegram = {
+      getStatus: mockFn().mockReturnValue({
+        configured: true,
+        instructorChatConfigured: true
+      }),
+      sendInstructorMessage: mockFn().mockResolvedValue({
+        delivered: true,
+        provider: 'telegram'
+      })
+    } as any;
+    const service = new NotificationsService(prisma, telegram);
+
+    const result = await service.notifyInstructorBookingRequested({
+      studentName: 'Алексей',
+      telegramUsername: 'alex_moto',
+      startsAt: new Date('2026-06-01T10:00:00.000Z'),
+      durationMinutes: 90,
+      location: 'Площадка',
+      slotId,
+      studentId
+    });
+
+    assert.equal(prisma.notification.create.calls[0][0].data.channel, 'telegram');
+    assert.equal(telegram.sendInstructorMessage.calls.length, 1);
+    assert.equal(prisma.notification.update.calls[0][0].data.status, 'sent');
+    assert.equal(result.delivered, true);
+    assert.equal(result.notification.status, 'sent');
+  }) ? passed++ : failed++;
+
+  await run('NotificationRetryService retries failed Telegram notification', async () => {
+    const notificationId = randomUUID();
+    const prisma = {
+      notification: {
+        findMany: mockFn().mockResolvedValue([
+          {
+            id: notificationId,
+            recipientRole: 'instructor',
+            recipientTelegramChatId: null,
+            message: 'Новая заявка на тренировку'
+          }
+        ]),
+        update: mockFn().mockResolvedValue({
+          id: notificationId,
+          status: 'sent'
+        })
+      }
+    } as any;
+    const telegram = {
+      getStatus: mockFn().mockReturnValue({
+        configured: true,
+        instructorChatConfigured: true
+      }),
+      sendInstructorMessage: mockFn().mockResolvedValue({
+        delivered: true,
+        provider: 'telegram'
+      }),
+      sendMessageToChat: mockFn()
+    } as any;
+    const config = {
+      get: mockFn((key: string, fallback: unknown) => {
+        const values: Record<string, unknown> = {
+          TELEGRAM_NOTIFICATION_RETRY_BATCH_SIZE: 20
+        };
+
+        return values[key] ?? fallback;
+      })
+    } as any;
+    const service = new NotificationRetryService(prisma, telegram, config);
+
+    const result = await service.retryFailedTelegramNotifications();
+
+    assert.equal(prisma.notification.findMany.calls[0][0].where.channel, 'telegram');
+    assert.deepEqual(prisma.notification.findMany.calls[0][0].where.status.in, ['failed', 'pending']);
+    assert.equal(telegram.sendInstructorMessage.calls.length, 1);
+    assert.equal(prisma.notification.update.calls[0][0].data.status, 'sent');
+    assert.equal(result.sent, 1);
+    assert.equal(result.failed, 0);
   }) ? passed++ : failed++;
 
   await run('TrainingReminderService sends one-hour reminders once per slot', async () => {
@@ -206,8 +333,12 @@ async function main() {
             finalLocation: 'Площадка',
             location: null,
             student: {
+              id: studentId,
               name: 'Алексей',
-              telegramUsername: 'alex_moto'
+              telegramUsername: 'alex_moto',
+              user: {
+                telegramId: '123456789'
+              }
             }
           }
         ])
@@ -224,6 +355,8 @@ async function main() {
     assert.equal(notifications.notifyInstructorTrainingReminder.calls[0][0].studentName, 'Алексей');
     assert.equal(notifications.notifyInstructorTrainingReminder.calls[0][0].telegramUsername, 'alex_moto');
     assert.equal(notifications.notifyInstructorTrainingReminder.calls[0][0].durationMinutes, 90);
+    assert.equal(notifications.notifyStudentTrainingReminder.calls.length, 1);
+    assert.equal(notifications.notifyStudentTrainingReminder.calls[0][0].studentTelegramChatId, '123456789');
   }) ? passed++ : failed++;
 
   await run('TelegramBotService.handleUpdate replies with chat id', async () => {

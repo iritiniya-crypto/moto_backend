@@ -199,7 +199,8 @@ export class BookingSlotsService {
       location: updatedSlot.location,
       preference: dto.preference,
       studentComment: dto.studentComment,
-      slotId: updatedSlot.id
+      slotId: updatedSlot.id,
+      studentId: student.id
     });
 
     return withBookingSlotDuration(updatedSlot);
@@ -324,7 +325,8 @@ export class BookingSlotsService {
         startsAt: updatedSlot.startsAt,
         durationMinutes: Math.round((updatedSlot.endsAt.getTime() - updatedSlot.startsAt.getTime()) / 60_000),
         location: updatedSlot.finalLocation ?? updatedSlot.location,
-        slotId: updatedSlot.id
+        slotId: updatedSlot.id,
+        studentId: slot.studentId
       });
     }
 
@@ -389,7 +391,8 @@ export class BookingSlotsService {
           startsAt: slot.startsAt,
           durationMinutes,
           location: slot.finalLocation ?? slot.location,
-          slotId: slot.id
+          slotId: slot.id,
+          studentId: slot.student.id
         },
         updatedSlot
       };

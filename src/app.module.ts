@@ -9,6 +9,7 @@ import { envSchema } from './config/env.schema';
 import { PrismaModule } from './prisma/prisma.module';
 import { ReportsModule } from './reports/reports.module';
 import { InstructorsModule } from './instructors/instructors.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { SkillsModule } from './skills/skills.module';
 import { StudentsModule } from './students/students.module';
 import { TrainingHistoryModule } from './training-history/training-history.module';
@@ -33,6 +34,7 @@ import { VideosModule } from './videos/videos.module';
     VideosModule,
     SkillsModule,
     CalendarModule,
+    NotificationsModule,
     TelegramModule
   ],
   controllers: [AppController]

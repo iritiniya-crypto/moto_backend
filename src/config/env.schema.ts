@@ -15,5 +15,8 @@ export const envSchema = Joi.object({
   TELEGRAM_INSTRUCTOR_CHAT_ID: Joi.string().allow('').optional(),
   TELEGRAM_NOTIFICATIONS_TIME_ZONE: Joi.string().default('Asia/Ho_Chi_Minh'),
   TELEGRAM_REMINDERS_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
-  TELEGRAM_REMINDER_POLL_INTERVAL_MS: Joi.number().integer().min(10_000).default(60_000)
+  TELEGRAM_REMINDER_POLL_INTERVAL_MS: Joi.number().integer().min(10_000).default(60_000),
+  TELEGRAM_NOTIFICATION_RETRY_ENABLED: Joi.boolean().truthy('true').falsy('false').default(true),
+  TELEGRAM_NOTIFICATION_RETRY_INTERVAL_MS: Joi.number().integer().min(30_000).default(300_000),
+  TELEGRAM_NOTIFICATION_RETRY_BATCH_SIZE: Joi.number().integer().min(1).max(100).default(20)
 });
