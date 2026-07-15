@@ -14,6 +14,9 @@
     "strict": true,
     "skipLibCheck": true,
     "strictPropertyInitialization": false,
-    "noImplicitAny": true
+    "noImplicitAny": true,
+    "types": [
+      "cypress", "vitest/globals", "jest", "node"
+    ]
   }
 }

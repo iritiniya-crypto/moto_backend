@@ -6,7 +6,7 @@ import { TelegramBotService } from '../telegram/telegram-bot.service';
 type NotificationRecipientRoleValue = 'instructor' | 'student';
 type NotificationChannelValue = 'internal' | 'telegram';
 
-export interface TrainingCancelledNotificationPayload {
+export interface TrainingStatusNotificationPayload {
   studentName: string;
   telegramUsername?: string | null;
   startsAt: Date;
@@ -14,6 +14,8 @@ export interface TrainingCancelledNotificationPayload {
   location?: string | null;
   slotId: string;
   studentId?: string | null;
+  studentTelegramChatId?: string | null;
+  approveType?: 'requestApproved' | 'rescheduleApproved';
 }
 
 export interface BookingRequestedNotificationPayload {
@@ -184,7 +186,30 @@ export class NotificationsService {
     });
   }
 
-  async notifyInstructorTrainingCancelled(payload: TrainingCancelledNotificationPayload) {
+  async notifyStudentTrainingApproved(payload: TrainingStatusNotificationPayload) {
+    const title = payload.approveType === 'requestApproved' ? 'Тренировка подтверждена' : 'Перенос тренировки подтвержден';
+    const message = [
+      title,
+      `Время: ${this.formatDate(payload.startsAt)} ${this.formatTime(payload.startsAt)}`,
+      `Длительность: ${payload.durationMinutes} мин.`,
+      payload.location ? `Место: ${payload.location}` : null
+    ].filter(Boolean).join('\n');
+
+    return this.deliver({
+      type: 'student.training_approved',
+      title,
+      recipientRole: 'student',
+      recipientTelegramChatId: payload.studentTelegramChatId,
+      entityId: payload.slotId,
+      bookingSlotId: payload.slotId,
+      studentId: payload.studentId,
+      message,
+      payload,
+      dedupeBySlotAndRecipient: true
+    });
+  }
+
+  async notifyInstructorTrainingCancelled(payload: TrainingStatusNotificationPayload) {
     const title = 'Тренировка отменена';
     const message = [
       `${payload.studentName} отменил тренировку.`,

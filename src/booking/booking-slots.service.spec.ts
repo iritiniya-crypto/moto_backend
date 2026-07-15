@@ -25,7 +25,8 @@ describe('BookingSlotsService', () => {
     notifyInstructorTrainingRescheduled: jest.fn(),
     notifyInstructorTrainingReminder: jest.fn(),
     notifyInstructorStudentCreated: jest.fn(),
-    notifyInstructorTrainingCancelled: jest.fn()
+    notifyInstructorTrainingCancelled: jest.fn(),
+    notifyStudentTrainingApproved: jest.fn(),
   };
 
   const service = new BookingSlotsService(prisma as any, notifications as any);

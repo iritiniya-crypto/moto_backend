@@ -210,6 +210,16 @@ export class BookingSlotsService {
     const slot = await this.findSlotOrThrow(slotId);
     this.assertAnySlotStatus(slot.status, ['requested', 'reschedule'], 'Only requested or reschedule slots can be confirmed');
 
+    const student = await this.prisma.student.findUnique({
+      where: { id: slot.studentId || '' },
+      select: {
+        id: true,
+        userId: true,
+        name: true,
+        telegramUsername: true
+      }
+    });
+
     const confirmationData = {
       status: BookingSlotStatus.confirmed,
       confirmedAt: new Date(),
@@ -223,6 +233,18 @@ export class BookingSlotsService {
         where: { id: slotId },
         data: confirmationData
       });
+
+      await this.notifications.notifyStudentTrainingApproved({
+        studentName: student?.name || '',
+        telegramUsername: student?.telegramUsername ?? null,
+        startsAt: slot.startsAt,
+        durationMinutes: Math.round((slot.endsAt.getTime() - slot.startsAt.getTime()) / 60_000),
+        location: confirmationData.finalLocation,
+        slotId: slot.id,
+        studentId: student?.id ?? null,
+        studentTelegramChatId: student?.userId ?? null,
+        approveType: "requestApproved"
+      })
 
       return withBookingSlotDuration(updatedSlot);
     }
@@ -273,6 +295,18 @@ export class BookingSlotsService {
 
       return { confirmedSlot, releasedSlot };
     });
+
+    await this.notifications.notifyStudentTrainingApproved({
+      studentName: student?.name || '',
+      telegramUsername: student?.telegramUsername ?? null,
+      startsAt: confirmedSlot.startsAt,
+      durationMinutes: Math.round((confirmedSlot.endsAt.getTime() - confirmedSlot.startsAt.getTime()) / 60_000),
+      location: confirmedSlot.finalLocation,
+      slotId: confirmedSlot.id,
+      studentId: student?.id ?? null,
+      studentTelegramChatId: student?.userId ?? null,
+      approveType: "rescheduleApproved"
+    })
 
     return withBookingSlotDurations([releasedSlot, confirmedSlot]);
   }
